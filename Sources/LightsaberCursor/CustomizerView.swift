@@ -98,11 +98,15 @@ struct SaberTab: View {
         HStack(alignment: .top, spacing: 12) {
             PresetList(settings: settings).frame(width: 230)
             SaberPreview(config: settings.prefs.saber)
-                .frame(maxWidth: .infinity)
+                .frame(minWidth: 0, maxWidth: .infinity)
+                .clipped()
             ScrollView {
-                EditorPanel(settings: settings).padding(.trailing, 8)
+                EditorPanel(settings: settings)
+                    .padding(.trailing, 12)
+                    .frame(width: 318)
             }
-            .frame(width: 300)
+            .frame(width: 330)
+            .clipped()
         }
     }
 }
@@ -244,19 +248,20 @@ struct EditorPanel: View {
                     HStack {
                         Toggle("Hilt", isOn: $settings.prefs.randomHilt)
                         Toggle("Color", isOn: $settings.prefs.randomColor)
-                        Spacer()
-                        Button {
-                            settings.randomize()
-                        } label: {
-                            Label("Randomize", systemImage: "dice.fill")
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(!settings.prefs.randomHilt && !settings.prefs.randomColor)
+                        Spacer(minLength: 0)
                     }
                     Picker("Side", selection: $settings.prefs.randomSide) {
                         ForEach(RandomSide.allCases) { Text($0.displayName).tag($0) }
                     }
                     .pickerStyle(.segmented)
+                    Button {
+                        settings.randomize()
+                    } label: {
+                        Label("Randomize", systemImage: "dice.fill")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!settings.prefs.randomHilt && !settings.prefs.randomColor)
                 }
                 .padding(4)
             }
@@ -274,7 +279,7 @@ struct EditorPanel: View {
 
             GroupBox("Hilt") {
                 VStack(alignment: .leading, spacing: 10) {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 92), spacing: 6)], spacing: 6) {
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 3), spacing: 6) {
                         ForEach(HiltStyle.allCases) { h in
                             let selected = settings.prefs.saber.hilt == h
                             Button {
@@ -282,7 +287,7 @@ struct EditorPanel: View {
                             } label: {
                                 VStack(spacing: 2) {
                                     HiltThumb(config: withHilt(h), height: 22).frame(height: 24)
-                                    Text(h.displayName).font(.caption)
+                                    Text(h.displayName).font(.caption).lineLimit(1).minimumScaleFactor(0.8)
                                 }
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 5)
@@ -306,16 +311,16 @@ struct EditorPanel: View {
                             .buttonStyle(.plain)
                             .help(f.displayName)
                         }
-                        Spacer()
-                        ColorPicker("Accent", selection: color(\.accent), supportsOpacity: false)
+                        Spacer(minLength: 0)
                     }
+                    ColorPicker("Accent color", selection: color(\.accent), supportsOpacity: false)
                 }
                 .padding(4)
             }
 
             GroupBox("Blade") {
                 VStack(alignment: .leading, spacing: 10) {
-                    LazyVGrid(columns: Array(repeating: GridItem(.fixed(24), spacing: 6), count: 9), spacing: 6) {
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 6), spacing: 6) {
                         ForEach(BladeColors.swatches, id: \.0) { name, rgb in
                             Button {
                                 settings.prefs.saber.blade = rgb
@@ -333,7 +338,7 @@ struct EditorPanel: View {
                     Picker("Style", selection: saber.bladeStyle) {
                         ForEach(BladeStyle.allCases) { Text($0.displayName).tag($0) }
                     }
-                    .pickerStyle(.segmented)
+                    .pickerStyle(.menu)
                     Toggle("Animated shimmer (hum flicker)", isOn: saber.animated)
                     LabeledSlider(title: "Core brightness", value: saber.coreWhiteness, range: 0...1)
                     LabeledSlider(title: "Length", value: saber.bladeLength, range: 0.6...1.4)
