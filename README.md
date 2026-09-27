@@ -3,7 +3,6 @@
 A personal macOS menu bar app that turns the mouse pointer into a lightsaber.
 
 - The blade points up-left like a normal arrow, and the click point is the blade tip.
-- Hovering anything clickable (buttons, links, menu items, Dock icons) makes the blade flare instead of switching to a hand cursor.
 - The blade retracts after N idle seconds and re-ignites when the mouse moves.
 - Clicking throws a spark, and fast swings leave a motion trail.
 - The customizer covers 14 hilt styles, 6 finishes, accent and blade colors, blade style (standard / unstable / Darksaber), shimmer, core brightness, length, thickness, and glow.
@@ -24,9 +23,9 @@ Requires only the Xcode Command Line Tools; SwiftPM is not used.
 open ~/Applications/"Lightsaber Cursor.app"
 ```
 
-Grant **System Settings → Privacy & Security → Accessibility** access so the app can see what's under the pointer (needed for the hover glow). On macOS 26, also enable the app under **System Settings → Menu Bar → Allow in the Menu Bar**, or its icon stays hidden.
+On macOS 26, enable the app under **System Settings → Menu Bar → Allow in the Menu Bar**, or its icon stays hidden.
 
-`build.sh` signs with a self-signed "Lightsaber Cursor Local Signing" certificate from the login keychain when it exists. The app's identity then stays stable, so the Accessibility grant survives rebuilds. Without the certificate it falls back to ad-hoc signing, and the permission must be re-granted after every rebuild.
+`build.sh` signs with a self-signed "Lightsaber Cursor Local Signing" certificate from the login keychain when it exists. The app's identity then stays stable, so macOS keeps treating rebuilds as the same app. Without the certificate it falls back to ad-hoc signing.
 
 To review the artwork without launching the app, render a contact sheet of every preset, hilt and state:
 
@@ -40,6 +39,6 @@ macOS has no public API for replacing the system cursor, and Mousecape-style pat
 
 1. Hides the real pointer. It uses the `SetsCursorInBackground` WindowServer property so this works while other apps are frontmost.
 2. Draws the saber in click-through, cursor-level overlay windows on every screen, tracking the mouse at 120 Hz.
-3. Asks the Accessibility API what element is under the pointer (`AXUIElementCopyElementAtPosition`) and flares the blade when it's clickable.
+3. Shows the real pointer while it's over secure system dialogs (password and keychain prompts), which nothing can draw on top of.
 
 Quitting the app, or the app crashing, restores the normal pointer automatically.

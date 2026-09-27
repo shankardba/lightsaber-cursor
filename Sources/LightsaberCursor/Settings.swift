@@ -27,7 +27,6 @@ struct Prefs: Codable, Equatable {
 
     var retractWhenIdle = true
     var idleSeconds: Double = 4
-    var hoverGlow = true
     var clickSpark = true
     var motionTrail = true
 

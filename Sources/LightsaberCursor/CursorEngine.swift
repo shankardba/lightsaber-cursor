@@ -58,10 +58,8 @@ final class OverlayWindow: NSWindow {
 
 final class CursorEngine: ObservableObject {
     @Published private(set) var activeDescription = ""
-    @Published private(set) var axTrusted = Accessibility.isTrusted
 
     private let settings: AppSettings
-    private let hover = HoverDetector()
     private var overlays: [OverlayWindow] = []
     private var timer: Timer?
     private var cancellables: Set<AnyCancellable> = []
@@ -70,10 +68,8 @@ final class CursorEngine: ObservableObject {
     private var lastTick = CACurrentMediaTime()
     private var lastMouse = NSEvent.mouseLocation
     private var lastMoveTime = CACurrentMediaTime()
-    private var lastHoverPoll: CFTimeInterval = 0
     private var lastHide: CFTimeInterval = 0
     private var lastResolve: CFTimeInterval = 0
-    private var lastTrustCheck: CFTimeInterval = 0
     private var lastSecureCheck: CFTimeInterval = 0
     private var overSecureDialog = false
     private var soundEngine: SaberSound?
@@ -81,7 +77,6 @@ final class CursorEngine: ObservableObject {
     private var speed: CGFloat = 0
 
     private var ext: Double = 1
-    private var glow: Double = 0
     private var displayed: SaberConfig
     private var displayedReason = "base"
     private var pending: (SaberConfig, String)?
@@ -94,7 +89,6 @@ final class CursorEngine: ObservableObject {
     private struct RenderKey: Equatable {
         var config: SaberConfig
         var ext: Int
-        var glow: Int
         var frame: Int
         var scale: Double
         var backing: CGFloat
@@ -154,7 +148,6 @@ final class CursorEngine: ObservableObject {
         clickMonitors.removeAll()
         overlays.forEach { $0.orderOut(nil) }
         overlays.removeAll()
-        hover.reset()
         SystemCursor.restore()
         soundEngine?.shutdown()
     }
@@ -228,18 +221,6 @@ final class CursorEngine: ObservableObject {
         }
         lastMouse = mouse
 
-        if now - lastTrustCheck > 2 {
-            lastTrustCheck = now
-            let t = Accessibility.isTrusted
-            if t != axTrusted { axTrusted = t }
-        }
-        if p.hoverGlow && axTrusted {
-            let interval = moved ? 0.06 : 0.35
-            if now - lastHoverPoll > interval {
-                lastHoverPoll = now
-                hover.poll()
-            }
-        }
         if now - lastSecureCheck > 0.12 {
             lastSecureCheck = now
             let secure = CGEvent(source: nil).map { SecureDialogs.cover($0.location) } ?? false
@@ -287,9 +268,6 @@ final class CursorEngine: ObservableObject {
             }
         }
 
-        let glowTarget: Double = (p.hoverGlow && axTrusted && hover.isClickable && ext > 0.5) ? 1 : 0
-        glow += (glowTarget - glow) * min(1, dt * 14)
-
         render(now: now, mouse: mouse, prefs: p)
     }
 
@@ -309,11 +287,11 @@ final class CursorEngine: ObservableObject {
         let scale = CGFloat(p.scale)
         let cfg = displayed
         let animated = cfg.animated || cfg.bladeStyle == .unstable
-        let key = RenderKey(config: cfg, ext: Int(ext * 120), glow: Int(glow * 60),
+        let key = RenderKey(config: cfg, ext: Int(ext * 120),
                             frame: animated && ext > 0 ? Int(now * 40) : 0, scale: p.scale, backing: window.backing)
         if key != lastKey {
             lastKey = key
-            cached = SaberRenderer.render(cfg, SaberState(ext: ext, glow: glow, time: now), scale: scale, backing: window.backing)
+            cached = SaberRenderer.render(cfg, SaberState(ext: ext, time: now), scale: scale, backing: window.backing)
         }
 
         CATransaction.begin()

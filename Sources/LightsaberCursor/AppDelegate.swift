@@ -19,7 +19,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             UserDefaults.standard.set(true, forKey: firstLaunchKey)
             showCustomizer()
         }
-        if !Accessibility.isTrusted { Accessibility.prompt() }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -141,7 +140,6 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         menu.addItem(.separator())
 
         menu.addItem(check("Retract When Idle", p.retractWhenIdle, #selector(toggleRetract)))
-        menu.addItem(check("Glow on Hover", p.hoverGlow, #selector(toggleGlow)))
         menu.addItem(check("Click Spark", p.clickSpark, #selector(toggleSpark)))
         menu.addItem(check("Motion Trail", p.motionTrail, #selector(toggleTrail)))
         menu.addItem(check("After-Dark Switch", p.afterDark, #selector(toggleAfterDark)))
@@ -150,9 +148,6 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         menu.addItem(check("Sounds", p.soundEnabled, #selector(toggleSounds)))
         menu.addItem(.separator())
 
-        if !engine.axTrusted {
-            menu.addItem(action("Grant Accessibility Access (for hover glow)…", #selector(grantAX)))
-        }
         menu.addItem(action("Customize…", #selector(customize), key: ","))
         menu.addItem(.separator())
         menu.addItem(action("Quit Lightsaber Cursor", #selector(quit), key: "q"))
@@ -189,17 +184,12 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     @objc private func toggleEnabled() { settings.prefs.enabled.toggle() }
     @objc private func randomize() { settings.randomize() }
     @objc private func toggleRetract() { settings.prefs.retractWhenIdle.toggle() }
-    @objc private func toggleGlow() { settings.prefs.hoverGlow.toggle() }
     @objc private func toggleSpark() { settings.prefs.clickSpark.toggle() }
     @objc private func toggleTrail() { settings.prefs.motionTrail.toggle() }
     @objc private func toggleAfterDark() { settings.prefs.afterDark.toggle() }
     @objc private func togglePerApp() { settings.prefs.perApp.toggle() }
     @objc private func toggleRandomIgnite() { settings.prefs.randomOnIgnite.toggle() }
     @objc private func toggleSounds() { settings.prefs.soundEnabled.toggle() }
-    @objc private func grantAX() {
-        Accessibility.prompt()
-        Accessibility.openSettings()
-    }
     @objc private func customize() { openCustomizer() }
     @objc private func quit() { NSApp.terminate(nil) }
 

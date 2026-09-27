@@ -40,7 +40,7 @@ enum ContactSheet {
             let col = i % cols
             let row = i / cols
             let cell = CGRect(x: CGFloat(col) * cellW, y: height - CGFloat(row + 1) * cellH, width: cellW, height: cellH)
-            place(SaberRenderer.render(p, SaberState(ext: 1, glow: 0, time: 0.3), scale: 1.25, backing: backing), in: cell)
+            place(SaberRenderer.render(p, SaberState(ext: 1, time: 0.3), scale: 1.25, backing: backing), in: cell)
             label(p.name, cell.minX + 6, cell.minY + 4)
         }
 
@@ -57,10 +57,9 @@ enum ContactSheet {
         }
 
         let states: [(String, SaberState)] = [
-            ("Extended", SaberState(ext: 1, glow: 0)),
-            ("Hover glow", SaberState(ext: 1, glow: 1)),
-            ("Retracting", SaberState(ext: 0.45, glow: 0)),
-            ("Retracted", SaberState(ext: 0, glow: 0)),
+            ("Extended", SaberState(ext: 1)),
+            ("Retracting", SaberState(ext: 0.45)),
+            ("Retracted", SaberState(ext: 0)),
         ]
         let stateTop = hiltTop - hiltRowH * CGFloat(hiltRows)
         for (i, (name, st)) in states.enumerated() {
@@ -68,7 +67,7 @@ enum ContactSheet {
             place(SaberRenderer.render(Presets.vader, st, scale: 1.25, backing: backing), in: cell)
             label("Vader – \(name)", cell.minX + 6, cell.minY + 4)
         }
-        let sparkCell = CGRect(x: 4 * cellW, y: stateTop - stateRowH, width: cellW, height: stateRowH)
+        let sparkCell = CGRect(x: 3 * cellW, y: stateTop - stateRowH, width: cellW, height: stateRowH)
         place(SaberRenderer.renderSpark(progress: 0.3, color: Presets.obiWan.blade, scale: 1.5, backing: backing), in: sparkCell)
         label("Click spark", sparkCell.minX + 6, sparkCell.minY + 4)
 

@@ -3,7 +3,6 @@ import CoreGraphics
 
 struct SaberState {
     var ext: Double = 1
-    var glow: Double = 0
     var time: Double = 0
 }
 
@@ -122,7 +121,7 @@ enum SaberRenderer {
     }
 
     static func glowShape(_ ctx: CGContext, body: CGPath, halo: CGPath, core: CGPath?, c: SaberConfig,
-                          intensity I: CGFloat, radius R: CGFloat, boost: CGFloat, px: CGFloat) {
+                          intensity I: CGFloat, radius R: CGFloat, px: CGFloat) {
         let dark = c.bladeStyle == .darksaber
         let glowRGB = dark ? RGB(0.9, 0.94, 1) : c.blade
 
@@ -143,12 +142,12 @@ enum SaberRenderer {
         if dark {
             ctx.saveGState()
             ctx.addPath(body)
-            ctx.setStrokeColor(RGB.white.cg(0.55 + 0.35 * boost))
+            ctx.setStrokeColor(RGB.white.cg(0.55))
             ctx.setLineWidth(0.45)
             ctx.strokePath()
             ctx.restoreGState()
         } else if let core {
-            let whiten = min(1, 0.5 + 0.45 * c.coreWhiteness + 0.25 * Double(boost))
+            let whiten = min(1, 0.5 + 0.45 * c.coreWhiteness)
             ctx.addPath(core)
             ctx.setFillColor(c.blade.mix(.white, whiten).cg())
             ctx.fillPath()
@@ -165,26 +164,15 @@ enum SaberRenderer {
         if c.animated || unstable {
             flick = 1 + 0.08 * sin(t * 29) + 0.05 * sin(t * 67 + 1.3) + 0.04 * sin(t * 143 + 0.7)
         }
-        let boost = CGFloat(s.glow)
-        let w = 3.3 * CGFloat(c.thickness) * (1 + 0.18 * boost)
-        let I = CGFloat(c.glowIntensity) * flick * (1 + 1.4 * boost)
-        let R = (4 + 8 * CGFloat(c.glowRadius)) * (1 + 1.1 * boost)
+        let w = 3.3 * CGFloat(c.thickness)
+        let I = CGFloat(c.glowIntensity) * flick
+        let R = 4 + 8 * CGFloat(c.glowRadius)
         let seed = (c.animated || unstable) ? Int(t * 24) : 0
-
-        if boost > 0.01 {
-            let auraRGB = c.bladeStyle == .darksaber ? RGB(0.9, 0.94, 1) : c.blade
-            ctx.saveGState()
-            ctx.setShadow(offset: .zero, blur: R * 2.6 * px, color: auraRGB.cg(min(1, 0.9 * boost)))
-            ctx.addPath(capsule(-0.5, len + 1, w * 2.4))
-            ctx.setFillColor(auraRGB.cg(0.28 * boost))
-            ctx.fillPath()
-            ctx.restoreGState()
-        }
 
         let body = unstable ? unstablePath(len, w, seed: seed) : capsule(-0.5, len, w)
         let core = capsule(0, len - w * 0.2, w * (0.4 + 0.22 * CGFloat(c.coreWhiteness)))
         glowShape(ctx, body: body, halo: capsule(-0.5, len, w * 0.9), core: core, c: c,
-                  intensity: I, radius: R, boost: boost, px: px)
+                  intensity: I, radius: R, px: px)
 
         if unstable {
             ctx.saveGState()
@@ -214,7 +202,7 @@ enum SaberRenderer {
                 let qb = CGPath(roundedRect: rect, cornerWidth: r, cornerHeight: r, transform: nil)
                 let cr = rect.insetBy(dx: 0.3, dy: qw * 0.28)
                 let qc = CGPath(roundedRect: cr, cornerWidth: min(cr.height / 2, cr.width / 2), cornerHeight: min(cr.height / 2, cr.width / 2), transform: nil)
-                glowShape(ctx, body: qb, halo: qb, core: qc, c: c, intensity: I * 0.8, radius: R * 0.7, boost: boost, px: px)
+                glowShape(ctx, body: qb, halo: qb, core: qc, c: c, intensity: I * 0.8, radius: R * 0.7, px: px)
             }
         }
     }

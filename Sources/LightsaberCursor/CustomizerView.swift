@@ -26,7 +26,7 @@ struct SaberThumb: View {
         let scale = height / lay.size.height
         let key = "saber|\(config.hashValue)|\(height)"
         if let img = ThumbCache.shared.image(key, make: {
-            SaberRenderer.render(config, SaberState(ext: 1, glow: 0, time: 0.3), scale: scale, backing: 2, tight: true)
+            SaberRenderer.render(config, SaberState(ext: 1, time: 0.3), scale: scale, backing: 2, tight: true)
         }) {
             Image(nsImage: img).frame(width: lay.size.width * scale, height: height)
         }
@@ -82,14 +82,6 @@ struct HeaderBar: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
             Spacer()
-            if !engine.axTrusted {
-                Label("Hover glow needs Accessibility access", systemImage: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.orange)
-                Button("Grant…") {
-                    Accessibility.prompt()
-                    Accessibility.openSettings()
-                }
-            }
             Text("Toggle: \(HotKey.displayString)").foregroundStyle(.secondary).font(.callout.monospaced())
         }
         .padding(.horizontal, 16)
@@ -105,11 +97,8 @@ struct SaberTab: View {
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             PresetList(settings: settings).frame(width: 230)
-            VStack(spacing: 12) {
-                SaberPreview(config: settings.prefs.saber)
-                TestStrip(idleSeconds: settings.prefs.idleSeconds, retract: settings.prefs.retractWhenIdle)
-            }
-            .frame(maxWidth: .infinity)
+            SaberPreview(config: settings.prefs.saber)
+                .frame(maxWidth: .infinity)
             ScrollView {
                 EditorPanel(settings: settings).padding(.trailing, 8)
             }
@@ -159,27 +148,24 @@ struct PresetList: View {
 }
 
 enum PreviewMode: String, CaseIterable, Identifiable {
-    case live, extended, hover, retracted
+    case live, extended, retracted
     var id: String { rawValue }
     var title: String {
         switch self {
         case .live: "Live loop"
         case .extended: "Extended"
-        case .hover: "Hover glow"
         case .retracted: "Retracted"
         }
     }
 
     func state(at t: Double) -> SaberState {
         switch self {
-        case .extended: return SaberState(ext: 1, glow: 0, time: t)
-        case .hover: return SaberState(ext: 1, glow: 1, time: t)
-        case .retracted: return SaberState(ext: 0, glow: 0, time: t)
+        case .extended: return SaberState(ext: 1, time: t)
+        case .retracted: return SaberState(ext: 0, time: t)
         case .live:
             let c = t.truncatingRemainder(dividingBy: 6)
             let ext: Double = c < 3.4 ? 1 : c < 3.75 ? 1 - (c - 3.4) / 0.35 : c < 5 ? 0 : c < 5.18 ? (c - 5) / 0.18 : 1
-            let glow: Double = c < 1.5 ? 0 : c < 1.7 ? (c - 1.5) / 0.2 : c < 2.9 ? 1 : c < 3.1 ? 1 - (c - 2.9) / 0.2 : 0
-            return SaberState(ext: ext, glow: glow, time: t)
+            return SaberState(ext: ext, time: t)
         }
     }
 }
@@ -212,33 +198,6 @@ struct SaberPreview: View {
             .frame(minHeight: 380)
             .background(lightBackground ? Color(white: 0.93) : Color(red: 0.04, green: 0.05, blue: 0.08))
             .clipShape(RoundedRectangle(cornerRadius: 14))
-        }
-    }
-}
-
-struct TestStrip: View {
-    let idleSeconds: Double
-    let retract: Bool
-    @State private var checked = true
-
-    var body: some View {
-        GroupBox("Try it with your real cursor") {
-            VStack(alignment: .leading, spacing: 10) {
-                Text(retract
-                     ? "Hover these and the blade flares. Stop moving for \(Int(idleSeconds))s and it retracts; move again to re-ignite."
-                     : "Hover these and the blade flares.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                HStack(spacing: 14) {
-                    Button("Button") {}.fixedSize()
-                    Button("Link") {}.buttonStyle(.link).fixedSize()
-                    Toggle("Checkbox", isOn: $checked).fixedSize()
-                    Menu("Menu") { Button("Item") {} }.fixedSize()
-                    Text("Plain text (no glow)").fixedSize().foregroundStyle(.tertiary)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(6)
         }
     }
 }
@@ -435,7 +394,6 @@ struct BehaviorTab: View {
                     .disabled(!settings.prefs.retractWhenIdle)
             }
             Section("Effects") {
-                Toggle("Glow when hovering something clickable", isOn: $settings.prefs.hoverGlow)
                 Toggle("Spark on click", isOn: $settings.prefs.clickSpark)
                 Toggle("Motion trail on fast swings", isOn: $settings.prefs.motionTrail)
             }
@@ -471,18 +429,6 @@ struct BehaviorTab: View {
                     }))
                 if let loginError { Text(loginError).foregroundStyle(.red).font(.caption) }
                 LabeledContent("Toggle shortcut", value: HotKey.displayString)
-                LabeledContent("Accessibility (hover glow)") {
-                    HStack {
-                        Text(engine.axTrusted ? "Granted" : "Not granted")
-                            .foregroundStyle(engine.axTrusted ? .green : .orange)
-                        if !engine.axTrusted {
-                            Button("Open Settings…") {
-                                Accessibility.prompt()
-                                Accessibility.openSettings()
-                            }
-                        }
-                    }
-                }
             }
         }
         .formStyle(.grouped)
