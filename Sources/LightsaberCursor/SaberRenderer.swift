@@ -162,6 +162,83 @@ enum SaberRenderer {
         ctx.restoreGState()
     }
 
+    /// Wide, flat metal blade with a symmetric point so the hotspot stays exactly at the tip.
+    static func swordPath(_ len: CGFloat, _ w: CGFloat) -> CGPath {
+        let hw = w * 0.95
+        let taper = min(len, hw * 3.2)
+        let p = CGMutablePath()
+        p.move(to: CGPoint(x: -hw, y: -0.5))
+        p.addLine(to: CGPoint(x: -hw, y: len - taper))
+        p.addLine(to: CGPoint(x: 0, y: len))
+        p.addLine(to: CGPoint(x: hw, y: len - taper))
+        p.addLine(to: CGPoint(x: hw, y: -0.5))
+        p.closeSubpath()
+        return p
+    }
+
+    /// Polished metal blade: sheen across the width, etched fishbone lines, and (when animated) a gleam that travels up it.
+    static func drawSword(_ c: SaberConfig, _ ctx: CGContext, len: CGFloat, w: CGFloat, t: Double, px: CGFloat) {
+        let hw = w * 0.95
+        let taper = min(len, hw * 3.2)
+        let body = swordPath(len, w)
+        let base = c.blade
+        let light = base.mix(.white, 0.5)
+        let dark = base.mix(.black, 0.45)
+
+        ctx.saveGState()
+        ctx.setShadow(offset: .zero, blur: (3 + 5 * CGFloat(c.glowRadius)) * px,
+                      color: base.mix(.white, 0.3).cg(min(1, 0.4 * CGFloat(c.glowIntensity))))
+        ctx.addPath(body)
+        ctx.setFillColor(base.cg())
+        ctx.fillPath()
+        ctx.restoreGState()
+
+        ctx.saveGState()
+        ctx.addPath(body)
+        ctx.clip()
+        let sheen = CGGradient(colorsSpace: srgb, colors: [dark.cg(), light.cg(), base.cg(), light.mix(base, 0.5).cg(), dark.cg()] as CFArray,
+                               locations: [0, 0.22, 0.5, 0.78, 1])!
+        ctx.drawLinearGradient(sheen, start: CGPoint(x: -hw, y: 0), end: CGPoint(x: hw, y: 0), options: [])
+
+        let etchTop = len - taper * 0.8
+        if etchTop > 2 {
+            ctx.setStrokeColor(dark.mix(.black, 0.2).cg(0.75))
+            ctx.setLineWidth(0.22)
+            ctx.setLineJoin(.miter)
+            for side in [CGFloat(-1), 1] {
+                var y: CGFloat = 1
+                var out = true
+                ctx.move(to: CGPoint(x: side * hw * 0.42, y: y))
+                while y < etchTop {
+                    y = min(etchTop, y + 0.7)
+                    ctx.addLine(to: CGPoint(x: side * hw * (out ? 0.64 : 0.2), y: y))
+                    out.toggle()
+                }
+                ctx.strokePath()
+            }
+            ctx.setStrokeColor(light.cg(0.6))
+            ctx.setLineWidth(0.18)
+            ctx.move(to: CGPoint(x: 0, y: 0.5))
+            ctx.addLine(to: CGPoint(x: 0, y: len - taper * 0.6))
+            ctx.strokePath()
+        }
+
+        if c.animated {
+            let travel = len + 8
+            let gy = CGFloat((t * 0.55).truncatingRemainder(dividingBy: 1)) * travel - 4
+            let gleam = CGGradient(colorsSpace: srgb, colors: [RGB.white.cg(0), RGB.white.cg(0.55), RGB.white.cg(0)] as CFArray,
+                                   locations: [0, 0.5, 1])!
+            ctx.drawLinearGradient(gleam, start: CGPoint(x: 0, y: gy - 2.5), end: CGPoint(x: 0, y: gy + 2.5), options: [])
+        }
+        ctx.restoreGState()
+
+        ctx.addPath(body)
+        ctx.setStrokeColor(dark.mix(.black, 0.35).cg(0.95))
+        ctx.setLineWidth(0.35)
+        ctx.setLineJoin(.miter)
+        ctx.strokePath()
+    }
+
     static func glowShape(_ ctx: CGContext, body: CGPath, halo: CGPath, core: CGPath?, c: SaberConfig,
                           intensity I: CGFloat, radius R: CGFloat, px: CGFloat) {
         let dark = c.bladeStyle == .darksaber
@@ -213,6 +290,11 @@ enum SaberRenderer {
         let I = CGFloat(c.glowIntensity) * flick
         let R = 4 + 8 * CGFloat(c.glowRadius)
         let seed = (c.animated || unstable) ? Int(t * 24) : 0
+
+        if c.bladeStyle == .sword {
+            drawSword(c, ctx, len: len, w: w, t: t, px: px)
+            return
+        }
 
         let body = dark ? darksaberPath(len, w)
             : unstable ? unstablePath(len, w, seed: seed) : capsule(-0.5, len, w)
@@ -552,6 +634,65 @@ enum SaberRenderer {
                 fill(ctx, rrect(-2.8, top: y, 5.6, 0.32, r: 0.1), a, 0.95)
             }
             seg(ctx, -19.5, 2.6, 5.3, f, r: 0.9)
+
+        case .ancient:
+            // Gold crossguard with upturned curls, tapered brown grip with gold scrollwork, flared crescent pommel.
+            let grip = RGB(0.33, 0.19, 0.09)
+            let gold = f.base.mix(f.light, 0.3)
+            for sx in [CGFloat(-1), 1] {
+                let curl = CGMutablePath()
+                curl.move(to: CGPoint(x: sx * 3.0, y: -0.4))
+                curl.addCurve(to: CGPoint(x: sx * 4.5, y: 1.6), control1: CGPoint(x: sx * 4.6, y: -0.6), control2: CGPoint(x: sx * 4.9, y: 0.6))
+                curl.addCurve(to: CGPoint(x: sx * 3.7, y: 2.3), control1: CGPoint(x: sx * 4.2, y: 2.4), control2: CGPoint(x: sx * 3.8, y: 2.5))
+                ctx.saveGState()
+                ctx.setLineCap(.round)
+                ctx.addPath(curl)
+                ctx.setStrokeColor(f.dark.mix(.black, 0.3).cg())
+                ctx.setLineWidth(0.95)
+                ctx.strokePath()
+                ctx.addPath(curl)
+                ctx.setStrokeColor(gold.cg())
+                ctx.setLineWidth(0.6)
+                ctx.strokePath()
+                ctx.restoreGState()
+                dot(ctx, sx * 3.7, 2.3, 0.45, gold)
+            }
+            metal(ctx, rrect(-3.4, top: 0.3, 6.8, 1.6, r: 0.6), f, halfWidth: 3.4)
+            let gp = poly([(-2.1, -1.3), (2.1, -1.3), (1.75, -12.6), (-1.75, -12.6)])
+            ctx.saveGState()
+            ctx.addPath(gp)
+            ctx.clip()
+            let gg = CGGradient(colorsSpace: srgb, colors: [grip.mix(.black, 0.4).cg(), grip.mix(.white, 0.25).cg(), grip.cg(), grip.mix(.black, 0.3).cg()] as CFArray,
+                                locations: [0, 0.3, 0.6, 1])!
+            ctx.drawLinearGradient(gg, start: CGPoint(x: -2.1, y: 0), end: CGPoint(x: 2.1, y: 0), options: [])
+            ctx.restoreGState()
+            ctx.saveGState()
+            ctx.setStrokeColor(a.cg(0.95))
+            ctx.setLineWidth(0.35)
+            ctx.setLineCap(.round)
+            ctx.strokeEllipse(in: CGRect(x: -0.8, y: -3.8, width: 1.6, height: 1.6))
+            ctx.strokeEllipse(in: CGRect(x: -0.8, y: -5.3, width: 1.6, height: 1.6))
+            for top in [CGFloat(-6.3), -9.3] {
+                ctx.move(to: CGPoint(x: -1.1, y: top))
+                ctx.addCurve(to: CGPoint(x: 1.1, y: top - 2.4), control1: CGPoint(x: 1.6, y: top - 0.2), control2: CGPoint(x: -1.6, y: top - 2.2))
+            }
+            ctx.strokePath()
+            ctx.restoreGState()
+            ctx.addPath(gp)
+            ctx.setStrokeColor(grip.mix(.black, 0.6).cg(0.9))
+            ctx.setLineWidth(0.3)
+            ctx.strokePath()
+            metal(ctx, rrect(-2.0, top: -12.4, 4.0, 1.0, r: 0.4), f, halfWidth: 2)
+            let pommel = CGMutablePath()
+            pommel.move(to: CGPoint(x: -1.5, y: -13.2))
+            pommel.addLine(to: CGPoint(x: -1.8, y: -14.2))
+            pommel.addCurve(to: CGPoint(x: -3.4, y: -16.4), control1: CGPoint(x: -2.6, y: -14.6), control2: CGPoint(x: -3.4, y: -15.4))
+            pommel.addCurve(to: CGPoint(x: 0, y: -15.6), control1: CGPoint(x: -2.2, y: -16.6), control2: CGPoint(x: -1.0, y: -15.6))
+            pommel.addCurve(to: CGPoint(x: 3.4, y: -16.4), control1: CGPoint(x: 1.0, y: -15.6), control2: CGPoint(x: 2.2, y: -16.6))
+            pommel.addCurve(to: CGPoint(x: 1.8, y: -14.2), control1: CGPoint(x: 3.4, y: -15.4), control2: CGPoint(x: 2.6, y: -14.6))
+            pommel.addLine(to: CGPoint(x: 1.5, y: -13.2))
+            pommel.closeSubpath()
+            metal(ctx, pommel, f, halfWidth: 3.4)
 
         case .inquisitor:
             let center = CGPoint(x: 0, y: -8.2)

@@ -6,8 +6,8 @@ A personal macOS menu bar app that turns the mouse pointer into a lightsaber.
 - The blade retracts after N idle seconds and re-ignites when the mouse moves.
 - Clicking throws a spark, and fast swings leave a motion trail.
 - At window edges and dividers the saber steps aside and macOS's own resize arrows appear, so you can see when you're in range to resize. There's an on/off toggle for this.
-- The customizer covers 15 hilt styles, 6 finishes, accent and blade colors, blade style (standard / unstable / flat, pointed Darksaber), shimmer, core brightness, length, thickness, and glow.
-- 40 character presets (Jedi, Sith, Grey), and you can save your own to "My Sabers".
+- The customizer covers 16 hilt styles, 6 finishes, accent and blade colors, blade style (standard / unstable / flat, pointed Darksaber / polished Metal Sword), shimmer, core brightness, length, thickness, and glow.
+- 44 character presets (Jedi, Sith, Grey), and you can save your own to "My Sabers".
 - The randomizer can change the hilt, the color and the side (Any / Jedi / Sith). It can also pick a new random saber every time the blade re-ignites.
 - Auto-switch: an after-dark saber (following macOS Dark Mode or set hours) and per-app sabers. Priority is per-app, then after dark, then your chosen saber.
 - Optional sounds, off by default: ignite/retract, clash on click, swing whoosh and a motion hum. The hum's pitch and volume follow cursor speed, and swings are pitched by how fast they are. Each sound has its own toggle and there's a volume slider.
