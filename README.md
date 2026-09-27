@@ -5,6 +5,7 @@ A personal macOS menu bar app that turns the mouse pointer into a lightsaber.
 - The blade points up-left like a normal arrow, and the click point is the blade tip.
 - The blade retracts after N idle seconds and re-ignites when the mouse moves.
 - Clicking throws a spark, and fast swings leave a motion trail.
+- At window edges and dividers the saber steps aside and macOS's own resize arrows appear, so you can see when you're in range to resize. There's an on/off toggle for this.
 - The customizer covers 15 hilt styles, 6 finishes, accent and blade colors, blade style (standard / unstable / flat, pointed Darksaber), shimmer, core brightness, length, thickness, and glow.
 - 40 character presets (Jedi, Sith, Grey), and you can save your own to "My Sabers".
 - The randomizer can change the hilt, the color and the side (Any / Jedi / Sith). It can also pick a new random saber every time the blade re-ignites.
@@ -40,6 +41,7 @@ macOS has no public API for replacing the system cursor, and Mousecape-style pat
 1. Hides the real pointer. It uses the `SetsCursorInBackground` WindowServer property so this works while other apps are frontmost.
 2. Draws the saber in click-through, cursor-level overlay windows on every screen, tracking the mouse at 120 Hz.
 3. Shows the real pointer while it's over secure system dialogs (password and keychain prompts), which nothing can draw on top of.
+4. Shows the real pointer while macOS wants a resize cursor. The app checks `NSCursor.currentSystem` and recognizes resize pointers by their size and centred hotspot. For troubleshooting, `defaults write com.shankar.lightsabercursor debugCursorShapes -bool YES` logs each pointer shape.
 
 Quitting the app, or the app crashing, restores the normal pointer automatically.
 

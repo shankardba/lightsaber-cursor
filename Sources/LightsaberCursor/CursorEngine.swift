@@ -71,7 +71,11 @@ final class CursorEngine: ObservableObject {
     private var lastHide: CFTimeInterval = 0
     private var lastResolve: CFTimeInterval = 0
     private var lastSecureCheck: CFTimeInterval = 0
+    private var lastShapeCheck: CFTimeInterval = 0
     private var overSecureDialog = false
+    private var overResizeEdge = false
+    /// True while macOS's own pointer is shown instead of the saber (secure dialogs, resize edges).
+    private var showingSystemPointer = false
     private var soundEngine: SaberSound?
     private var lastSwing: CFTimeInterval = 0
     private var humSpeed: Double = 0
@@ -189,7 +193,7 @@ final class CursorEngine: ObservableObject {
 
     private func updateHum(now: CFTimeInterval, dt: Double, prefs p: Prefs) {
         var level = Self.speedLevel(speed)
-        var active = p.soundEnabled && p.soundHum && ext > 0.3 && !overSecureDialog
+        var active = p.soundEnabled && p.soundHum && ext > 0.3 && !showingSystemPointer
         if let start = humTestStart {
             let u = (now - start) / 2.4
             if u >= 1 {
@@ -254,13 +258,23 @@ final class CursorEngine: ObservableObject {
 
         if now - lastSecureCheck > 0.12 {
             lastSecureCheck = now
-            let secure = CGEvent(source: nil).map { SecureDialogs.cover($0.location) } ?? false
-            if secure != overSecureDialog {
-                overSecureDialog = secure
-                if secure { SystemCursor.restore() } else { lastHide = 0 }
-            }
+            overSecureDialog = CGEvent(source: nil).map { SecureDialogs.cover($0.location) } ?? false
         }
-        if overSecureDialog {
+        // Only sample the system cursor while the pointer is moving, a button is held (a resize drag),
+        // or we're already showing resize arrows.
+        let active = now - lastMoveTime < 0.6 || NSEvent.pressedMouseButtons != 0 || overResizeEdge
+        if p.systemResizeArrows && active && now - lastShapeCheck > 0.06 {
+            lastShapeCheck = now
+            overResizeEdge = SystemCursorShape.isResize()
+        } else if !p.systemResizeArrows {
+            overResizeEdge = false
+        }
+        let wantSystem = overSecureDialog || overResizeEdge
+        if wantSystem != showingSystemPointer {
+            showingSystemPointer = wantSystem
+            if wantSystem { SystemCursor.restore() } else { lastHide = 0 }
+        }
+        if showingSystemPointer {
             hideAll()
             updateHum(now: now, dt: dt, prefs: p)
             return

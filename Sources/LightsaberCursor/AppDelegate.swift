@@ -142,6 +142,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         menu.addItem(check("Retract When Idle", p.retractWhenIdle, #selector(toggleRetract)))
         menu.addItem(check("Click Spark", p.clickSpark, #selector(toggleSpark)))
         menu.addItem(check("Motion Trail", p.motionTrail, #selector(toggleTrail)))
+        menu.addItem(check("Resize Arrows at Window Edges", p.systemResizeArrows, #selector(toggleResizeArrows)))
         menu.addItem(check("After-Dark Switch", p.afterDark, #selector(toggleAfterDark)))
         menu.addItem(check("Per-App Sabers", p.perApp, #selector(togglePerApp)))
         menu.addItem(check("Randomize on Re-ignite", p.randomOnIgnite, #selector(toggleRandomIgnite)))
@@ -186,6 +187,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     @objc private func toggleRetract() { settings.prefs.retractWhenIdle.toggle() }
     @objc private func toggleSpark() { settings.prefs.clickSpark.toggle() }
     @objc private func toggleTrail() { settings.prefs.motionTrail.toggle() }
+    @objc private func toggleResizeArrows() { settings.prefs.systemResizeArrows.toggle() }
     @objc private func toggleAfterDark() { settings.prefs.afterDark.toggle() }
     @objc private func togglePerApp() { settings.prefs.perApp.toggle() }
     @objc private func toggleRandomIgnite() { settings.prefs.randomOnIgnite.toggle() }

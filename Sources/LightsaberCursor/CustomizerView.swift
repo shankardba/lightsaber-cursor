@@ -396,6 +396,7 @@ struct BehaviorTab: View {
             Section("Effects") {
                 Toggle("Spark on click", isOn: $settings.prefs.clickSpark)
                 Toggle("Motion trail on fast swings", isOn: $settings.prefs.motionTrail)
+                Toggle("Show macOS resize arrows at window edges", isOn: $settings.prefs.systemResizeArrows)
             }
             Section("Sounds") {
                 Toggle("Play sounds", isOn: $settings.prefs.soundEnabled)

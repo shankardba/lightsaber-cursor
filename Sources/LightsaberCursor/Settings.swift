@@ -29,6 +29,7 @@ struct Prefs: Codable, Equatable {
     var idleSeconds: Double = 4
     var clickSpark = true
     var motionTrail = true
+    var systemResizeArrows = true
 
     var afterDark = false
     var afterDarkMode: AfterDarkMode = .systemAppearance

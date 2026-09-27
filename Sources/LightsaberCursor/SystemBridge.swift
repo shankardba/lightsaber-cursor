@@ -36,6 +36,42 @@ enum SystemCursor {
     }
 }
 
+/// Recognizes macOS's own window/divider resize pointers from the system-wide current cursor.
+/// They're identified by size plus a hotspot at the image centre (the arrow's hotspot is at its tip).
+enum SystemCursorShape {
+    private static let resizeSizes: [CGSize] = [
+        CGSize(width: 18, height: 28), CGSize(width: 24, height: 18), CGSize(width: 22, height: 22),
+        CGSize(width: 30, height: 24), CGSize(width: 24, height: 28), CGSize(width: 24, height: 24),
+    ]
+    private static let debug = UserDefaults.standard.bool(forKey: "debugCursorShapes")
+    private static var lastLogged = ""
+
+    static func isResize() -> Bool {
+        guard let c = NSCursor.currentSystem else { return false }
+        let s = c.image.size
+        let h = c.hotSpot
+        guard s.width > 0, s.height > 0 else { return false }
+        if debug {
+            let sig = "size=\(s) hot=\(h)"
+            if sig != lastLogged {
+                lastLogged = sig
+                NSLog("cursor shape \(sig)")
+            }
+        }
+        let centred = abs(h.x - s.width / 2) <= max(1.5, s.width * 0.06)
+            && abs(h.y - s.height / 2) <= max(1.5, s.height * 0.06)
+        guard centred else { return false }
+        return resizeSizes.contains { known in
+            let k = s.width / known.width
+            if abs(k - 1) < 0.03 {
+                return abs(s.width - known.width) <= 0.5 && abs(s.height - known.height) <= 0.5
+            }
+            // Enlarged pointer (Accessibility → Display → Pointer size) scales every cursor uniformly.
+            return k >= 1.2 && abs(s.height - known.height * k) <= s.height * 0.02
+        }
+    }
+}
+
 /// Password, keychain and permission prompts are drawn above every app window and can't be covered,
 /// so over those the real pointer is shown instead of the saber.
 enum SecureDialogs {
