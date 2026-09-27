@@ -21,7 +21,9 @@ enum SaberRenderer {
     static let angle: CGFloat = 35 * .pi / 180
     static let srgb = CGColorSpace(name: CGColorSpace.sRGB)!
 
-    static func bladeLength(_ c: SaberConfig) -> CGFloat { 44 * CGFloat(c.bladeLength) }
+    static func bladeLength(_ c: SaberConfig) -> CGFloat {
+        44 * CGFloat(c.bladeLength) * (c.bladeStyle == .darksaber ? 1.15 : 1)
+    }
 
     /// Unit vector (y-up screen space) from the emitter toward the tip.
     static var direction: CGVector { CGVector(dx: -sin(angle), dy: cos(angle)) }
