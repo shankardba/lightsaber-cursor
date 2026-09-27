@@ -4,6 +4,25 @@ import UniformTypeIdentifiers
 
 /// `LightsaberCursor --render-sheet out.png` draws every preset, hilt and state for visual review.
 enum ContactSheet {
+    /// `LightsaberCursor --render-preset "<name>" out.png` renders one preset large, for close comparison.
+    static func renderPreset(named name: String, to path: String) {
+        guard let p = Presets.all.first(where: { $0.name == name }),
+              let r = SaberRenderer.render(p, SaberState(ext: 1, time: 0.3), scale: 6, backing: 2),
+              let ctx = SaberRenderer.makeContext(r.size, backing: 2) else { return }
+        ctx.setFillColor(CGColor(srgbRed: 0.05, green: 0.06, blue: 0.09, alpha: 1))
+        ctx.fill(CGRect(origin: .zero, size: r.size))
+        ctx.draw(r.image, in: CGRect(origin: .zero, size: r.size))
+        guard let img = ctx.makeImage() else { return }
+        write(img, to: path)
+    }
+
+    static func write(_ img: CGImage, to path: String) {
+        guard let dest = CGImageDestinationCreateWithURL(URL(fileURLWithPath: path) as CFURL, UTType.png.identifier as CFString, 1, nil) else { return }
+        CGImageDestinationAddImage(dest, img, nil)
+        CGImageDestinationFinalize(dest)
+        print("wrote \(path)")
+    }
+
     static func render(to path: String) {
         let presets = Presets.all
         let cols = 6

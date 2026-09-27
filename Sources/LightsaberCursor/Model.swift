@@ -92,7 +92,7 @@ enum HiltStyle: String, Codable, CaseIterable, Identifiable {
         case .inquisitor: 16
         case .staff: 33.4
         case .clawed: 25
-        case .darksaber: 23.4
+        case .darksaber: 22.2
         }
     }
 }
@@ -258,8 +258,8 @@ enum Presets {
         p("Darth Revan", .sith, .clawed, .black, accent: 0x8A2BE2, blade: 0xFF2323, animated: true),
 
         p("Ahsoka Tano (White)", .grey, .ornate, .white, accent: 0x2A2A2A, blade: 0xEEF4FF, animated: true),
-        p("Sabine Wren (Darksaber)", .grey, .darksaber, .black, accent: 0xC8CCD2, blade: 0x0A0A0C, style: .darksaber, animated: true),
-        p("Din Djarin (Darksaber)", .grey, .darksaber, .gunmetal, accent: 0xC8CCD2, blade: 0x0A0A0C, style: .darksaber, animated: true),
+        p("Sabine Wren (Darksaber)", .grey, .darksaber, .silver, accent: 0xC0302A, blade: 0x0A0A0C, style: .darksaber, animated: true),
+        p("Din Djarin (Darksaber)", .grey, .darksaber, .gunmetal, accent: 0xC0302A, blade: 0x0A0A0C, style: .darksaber, animated: true),
         p("Baylan Skoll", .grey, .angular, .gunmetal, accent: 0xD9B04C, blade: 0xFF7A18, thickness: 1.15),
         p("Mara Jade", .grey, .slim, .silver, accent: 0xB02070, blade: 0xFF2E9A),
         p("Revan (Jedi)", .grey, .clawed, .gunmetal, accent: 0x6A4EB0, blade: 0xA24DFF, animated: true),
