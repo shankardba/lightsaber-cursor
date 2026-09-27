@@ -25,8 +25,10 @@ final class OverlayWindow: NSWindow {
         hasShadow = false
         ignoresMouseEvents = true
         isReleasedWhenClosed = false
-        level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.cursorWindow)))
-        collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary, .ignoresCycle]
+        level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.maximumWindow)))
+        collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary, .ignoresCycle, .fullScreenDisallowsTiling]
+        sharingType = .readOnly
+        animationBehavior = .none
 
         let view = NSView(frame: NSRect(origin: .zero, size: screen.frame.size))
         let root = CALayer()
@@ -221,6 +223,7 @@ final class CursorEngine: ObservableObject {
         if now - lastHide > 0.2 {
             lastHide = now
             SystemCursor.ensureHidden()
+            overlays.forEach { $0.orderFrontRegardless() }
         }
         if now - lastResolve > 0.5 || pending == nil && settings.prefs.saber != displayed && displayedReason == "base" {
             lastResolve = now
