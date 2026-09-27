@@ -74,6 +74,8 @@ final class CursorEngine: ObservableObject {
     private var overSecureDialog = false
     private var soundEngine: SaberSound?
     private var lastSwing: CFTimeInterval = 0
+    private var humSpeed: Double = 0
+    private var humTestStart: CFTimeInterval?
     private var speed: CGFloat = 0
 
     private var ext: Double = 1
@@ -167,11 +169,40 @@ final class CursorEngine: ObservableObject {
         sparkPoint = NSEvent.mouseLocation
     }
 
-    func playSound(_ kind: SaberSound.Kind, force: Bool = false) {
+    func playSound(_ kind: SaberSound.Kind, force: Bool = false, rate: Double = 1) {
         let p = settings.prefs
         guard force || p.soundEnabled else { return }
         if soundEngine == nil { soundEngine = SaberSound() }
-        soundEngine?.play(kind, volume: p.soundVolume)
+        soundEngine?.play(kind, volume: p.soundVolume, rate: rate)
+    }
+
+    /// Plays the motion hum sweeping from resting pitch to full-speed pitch.
+    func testHum() {
+        if soundEngine == nil { soundEngine = SaberSound() }
+        humTestStart = CACurrentMediaTime()
+    }
+
+    /// 0 at rest, 1 at a fast flick (~3000 pt/s).
+    private static func speedLevel(_ speed: CGFloat) -> Double {
+        pow(min(1, max(0, Double(speed) / 3000)), 0.7)
+    }
+
+    private func updateHum(now: CFTimeInterval, dt: Double, prefs p: Prefs) {
+        var level = Self.speedLevel(speed)
+        var active = p.soundEnabled && p.soundHum && ext > 0.3 && !overSecureDialog
+        if let start = humTestStart {
+            let u = (now - start) / 2.4
+            if u >= 1 {
+                humTestStart = nil
+            } else {
+                active = true
+                level = sin(.pi * u)
+            }
+        }
+        humSpeed += (level - humSpeed) * min(1, dt * 9)
+        guard active || soundEngine != nil else { return }
+        soundEngine?.updateHum(active: active, rate: 0.75 + 0.9 * humSpeed,
+                               volume: p.soundVolume * (0.12 + 0.6 * humSpeed))
     }
 
     // MARK: Active saber resolution (per-app > after dark > base)
@@ -215,9 +246,9 @@ final class CursorEngine: ObservableObject {
         let moved = dist > 0.01
         if moved { lastMoveTime = now }
         speed += (dist / CGFloat(dt) - speed) * 0.35
-        if p.soundSwing && speed > 2400 && ext > 0.6 && now - lastSwing > 0.45 {
+        if p.soundSwing && speed > 1600 && ext > 0.6 && now - lastSwing > 0.45 {
             lastSwing = now
-            playSound(.swing)
+            playSound(.swing, rate: 0.75 + 0.85 * min(1, Double(speed - 1600) / 3400))
         }
         lastMouse = mouse
 
@@ -231,6 +262,7 @@ final class CursorEngine: ObservableObject {
         }
         if overSecureDialog {
             hideAll()
+            updateHum(now: now, dt: dt, prefs: p)
             return
         }
         if now - lastHide > 0.2 {
@@ -268,6 +300,7 @@ final class CursorEngine: ObservableObject {
             }
         }
 
+        updateHum(now: now, dt: dt, prefs: p)
         render(now: now, mouse: mouse, prefs: p)
     }
 

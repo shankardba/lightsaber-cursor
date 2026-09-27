@@ -49,6 +49,7 @@ struct Prefs: Codable, Equatable {
     var soundIgnite = true
     var soundClash = true
     var soundSwing = true
+    var soundHum = true
 }
 
 final class AppSettings: ObservableObject {

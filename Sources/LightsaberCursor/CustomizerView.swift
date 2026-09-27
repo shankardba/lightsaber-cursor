@@ -403,7 +403,16 @@ struct BehaviorTab: View {
                     LabeledSlider(title: "Volume", value: $settings.prefs.soundVolume, range: 0...1)
                     soundRow("Ignite and retract (idle, auto-switch)", isOn: $settings.prefs.soundIgnite, kinds: [.ignite, .retract])
                     soundRow("Clash on click", isOn: $settings.prefs.soundClash, kinds: [.clash])
-                    soundRow("Swing whoosh on fast moves", isOn: $settings.prefs.soundSwing, kinds: [.swing])
+                    soundRow("Swing whoosh on fast moves (pitch follows speed)", isOn: $settings.prefs.soundSwing, kinds: [.swing])
+                    HStack {
+                        Toggle("Motion hum (pitch rises as the cursor moves faster)", isOn: $settings.prefs.soundHum)
+                        Spacer()
+                        Button {
+                            engine.testHum()
+                        } label: {
+                            Label("Test", systemImage: "speaker.wave.2.fill")
+                        }
+                    }
                 }
                 .disabled(!settings.prefs.soundEnabled)
             }

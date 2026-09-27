@@ -7,35 +7,98 @@ final class SaberSound {
     private let engine = AVAudioEngine()
     private let format = AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 1)!
     private var players: [AVAudioPlayerNode] = []
+    private var pitchUnits: [AVAudioUnitVarispeed] = []
     private var buffers: [Kind: AVAudioPCMBuffer] = [:]
     private var nextPlayer = 0
+
+    private let humPlayer = AVAudioPlayerNode()
+    private let humPitch = AVAudioUnitVarispeed()
+    private var humBuffer: AVAudioPCMBuffer?
+    private var humPlaying = false
 
     init() {
         for _ in 0..<4 {
             let p = AVAudioPlayerNode()
+            let v = AVAudioUnitVarispeed()
             engine.attach(p)
-            engine.connect(p, to: engine.mainMixerNode, format: format)
+            engine.attach(v)
+            engine.connect(p, to: v, format: format)
+            engine.connect(v, to: engine.mainMixerNode, format: format)
             players.append(p)
+            pitchUnits.append(v)
         }
+        engine.attach(humPlayer)
+        engine.attach(humPitch)
+        engine.connect(humPlayer, to: humPitch, format: format)
+        engine.connect(humPitch, to: engine.mainMixerNode, format: format)
         for k in Kind.allCases { buffers[k] = synthesize(k) }
+        humBuffer = synthesizeHum()
     }
 
-    func play(_ kind: Kind, volume: Double) {
-        guard let buffer = buffers[kind] else { return }
-        if !engine.isRunning {
-            do { try engine.start() } catch { return }
-        }
-        let p = players[nextPlayer]
+    private func ensureRunning() -> Bool {
+        if engine.isRunning { return true }
+        do { try engine.start() } catch { return false }
+        return true
+    }
+
+    /// `rate` 1 = original pitch; higher plays faster and higher.
+    func play(_ kind: Kind, volume: Double, rate: Double = 1) {
+        guard let buffer = buffers[kind], ensureRunning() else { return }
+        let i = nextPlayer
         nextPlayer = (nextPlayer + 1) % players.count
+        let p = players[i]
         p.stop()
+        pitchUnits[i].rate = Float(max(0.25, min(4, rate)))
         p.volume = Float(max(0, min(1, volume)))
         p.scheduleBuffer(buffer, at: nil, options: [], completionHandler: nil)
         p.play()
     }
 
+    /// Continuous hum whose pitch tracks cursor speed; call every frame.
+    func updateHum(active: Bool, rate: Double, volume: Double) {
+        if active {
+            guard let humBuffer, ensureRunning() else { return }
+            if !humPlaying {
+                humPlayer.volume = 0
+                humPlayer.scheduleBuffer(humBuffer, at: nil, options: .loops, completionHandler: nil)
+                humPlayer.play()
+                humPlaying = true
+            }
+            humPitch.rate = Float(max(0.25, min(4, rate)))
+            humPlayer.volume = Float(max(0, min(1, volume)))
+        } else if humPlaying {
+            humPlayer.stop()
+            humPlaying = false
+        }
+    }
+
     func shutdown() {
         players.forEach { $0.stop() }
+        humPlayer.stop()
+        humPlaying = false
         if engine.isRunning { engine.stop() }
+    }
+
+    /// One second of detuned buzz with whole-number cycles for every partial, so it loops seamlessly.
+    private func synthesizeHum() -> AVAudioPCMBuffer? {
+        let sr = 44_100.0
+        let n = Int(sr)
+        guard let buf = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(n)),
+              let out = buf.floatChannelData?[0] else { return nil }
+        buf.frameLength = AVAudioFrameCount(n)
+        var lp = 0.0
+        func sample(_ t: Double) -> Double {
+            let saw1 = 2 * (90 * t - floor(90 * t)) - 1
+            let saw2 = 2 * (91 * t - floor(91 * t)) - 1
+            let wobble = 1 + 0.12 * sin(2 * .pi * 3 * t)
+            return (0.5 * saw1 + 0.4 * saw2 + 0.3 * sin(2 * .pi * 180 * t)) * wobble
+        }
+        for i in 0..<n { lp += (sample(Double(i) / sr) - lp) * 0.14 }
+        for i in 0..<n {
+            lp += (sample(Double(i) / sr) - lp) * 0.14
+            out[i] = Float(tanh(lp * 1.8) * 0.6)
+        }
+        return buf
     }
 
     private func synthesize(_ kind: Kind) -> AVAudioPCMBuffer? {
