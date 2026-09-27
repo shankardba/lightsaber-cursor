@@ -55,7 +55,7 @@ enum Faction: String, Codable, CaseIterable, Identifiable {
 }
 
 enum HiltStyle: String, Codable, CaseIterable, Identifiable {
-    case classic, ribbed, slim, curved, crossguard, shoto, jagged, angular, ornate, banded, worn, inquisitor, staff, clawed
+    case classic, ribbed, slim, curved, crossguard, shoto, jagged, angular, ornate, banded, worn, inquisitor, staff, clawed, darksaber
     var id: String { rawValue }
     var displayName: String {
         switch self {
@@ -73,6 +73,7 @@ enum HiltStyle: String, Codable, CaseIterable, Identifiable {
         case .inquisitor: "Inquisitor"
         case .staff: "Staff"
         case .clawed: "Clawed"
+        case .darksaber: "Darksaber"
         }
     }
     var length: CGFloat {
@@ -91,6 +92,7 @@ enum HiltStyle: String, Codable, CaseIterable, Identifiable {
         case .inquisitor: 16
         case .staff: 33.4
         case .clawed: 25
+        case .darksaber: 23.4
         }
     }
 }
@@ -256,8 +258,8 @@ enum Presets {
         p("Darth Revan", .sith, .clawed, .black, accent: 0x8A2BE2, blade: 0xFF2323, animated: true),
 
         p("Ahsoka Tano (White)", .grey, .ornate, .white, accent: 0x2A2A2A, blade: 0xEEF4FF, animated: true),
-        p("Sabine Wren (Darksaber)", .grey, .angular, .black, accent: 0xC8CCD2, blade: 0x0A0A0C, style: .darksaber, animated: true),
-        p("Din Djarin (Darksaber)", .grey, .ribbed, .gunmetal, accent: 0xC8CCD2, blade: 0x0A0A0C, style: .darksaber, animated: true),
+        p("Sabine Wren (Darksaber)", .grey, .darksaber, .black, accent: 0xC8CCD2, blade: 0x0A0A0C, style: .darksaber, animated: true),
+        p("Din Djarin (Darksaber)", .grey, .darksaber, .gunmetal, accent: 0xC8CCD2, blade: 0x0A0A0C, style: .darksaber, animated: true),
         p("Baylan Skoll", .grey, .angular, .gunmetal, accent: 0xD9B04C, blade: 0xFF7A18, thickness: 1.15),
         p("Mara Jade", .grey, .slim, .silver, accent: 0xB02070, blade: 0xFF2E9A),
         p("Revan (Jedi)", .grey, .clawed, .gunmetal, accent: 0x6A4EB0, blade: 0xA24DFF, animated: true),
@@ -296,7 +298,7 @@ enum Randomizer {
             c.blade = jitter
             c.bladeStyle = .standard
             if faction == .sith && Double.random(in: 0..<1) < 0.22 { c.bladeStyle = .unstable }
-            if faction == .grey && Double.random(in: 0..<1) < 0.25 {
+            if Double.random(in: 0..<1) < (faction == .grey ? 0.3 : 0.12) {
                 c.bladeStyle = .darksaber
                 c.blade = RGB(hex: 0x0A0A0C)
             }
@@ -306,8 +308,8 @@ enum Randomizer {
             c.animated = Bool.random()
         }
         if hilt {
-            let sithHilts: [HiltStyle] = [.ribbed, .jagged, .curved, .crossguard, .angular, .worn, .ornate, .inquisitor, .staff, .clawed]
-            let jediHilts: [HiltStyle] = [.classic, .slim, .shoto, .ornate, .banded, .worn, .angular, .curved, .clawed]
+            let sithHilts: [HiltStyle] = [.ribbed, .jagged, .curved, .crossguard, .angular, .worn, .ornate, .inquisitor, .staff, .clawed, .darksaber]
+            let jediHilts: [HiltStyle] = [.classic, .slim, .shoto, .ornate, .banded, .worn, .angular, .curved, .clawed, .darksaber]
             c.hilt = (faction == .sith ? sithHilts : jediHilts).randomElement()!
             let finishes: [HiltFinish] = faction == .sith
                 ? [.black, .black, .gunmetal, .silver, .brass]

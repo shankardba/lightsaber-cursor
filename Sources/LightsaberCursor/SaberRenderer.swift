@@ -120,6 +120,31 @@ enum SaberRenderer {
         return p
     }
 
+    /// Flat, sword-like blade with a pointed tip; edges jitter slightly when animated to read as crackling.
+    static func darksaberPath(_ len: CGFloat, _ w: CGFloat, seed: Int, crackle: Bool) -> CGPath {
+        let hw = w * 0.72
+        let tip = min(len, hw * 3.2)
+        let n = max(3, Int((len - tip) / 2.4))
+        var left: [CGPoint] = []
+        var right: [CGPoint] = []
+        for i in 0...n {
+            let y = (len - tip) * CGFloat(i) / CGFloat(n)
+            let j1 = crackle && i > 0 ? (hash(i, seed) - 0.5) * 0.35 : 0
+            let j2 = crackle && i > 0 ? (hash(i + 53, seed) - 0.5) * 0.35 : 0
+            left.append(CGPoint(x: -hw + j1, y: y))
+            right.append(CGPoint(x: hw + j2, y: y))
+        }
+        let p = CGMutablePath()
+        p.move(to: CGPoint(x: 0, y: -0.5))
+        p.addLine(to: CGPoint(x: -hw, y: -0.5))
+        left.forEach { p.addLine(to: $0) }
+        p.addLine(to: CGPoint(x: 0, y: len))
+        right.reversed().forEach { p.addLine(to: $0) }
+        p.addLine(to: CGPoint(x: hw, y: -0.5))
+        p.closeSubpath()
+        return p
+    }
+
     static func glowShape(_ ctx: CGContext, body: CGPath, halo: CGPath, core: CGPath?, c: SaberConfig,
                           intensity I: CGFloat, radius R: CGFloat, px: CGFloat) {
         let dark = c.bladeStyle == .darksaber
@@ -141,9 +166,11 @@ enum SaberRenderer {
 
         if dark {
             ctx.saveGState()
+            ctx.setShadow(offset: .zero, blur: 2.5 * px, color: RGB(0.85, 0.92, 1).cg(min(1, 0.9 * I)))
             ctx.addPath(body)
-            ctx.setStrokeColor(RGB.white.cg(0.55))
-            ctx.setLineWidth(0.45)
+            ctx.setStrokeColor(RGB(0.93, 0.96, 1).cg(0.85))
+            ctx.setLineWidth(0.5)
+            ctx.setLineJoin(.miter)
             ctx.strokePath()
             ctx.restoreGState()
         } else if let core {
@@ -160,6 +187,7 @@ enum SaberRenderer {
         let len = L * e
         let t = s.time
         let unstable = c.bladeStyle == .unstable
+        let dark = c.bladeStyle == .darksaber
         var flick: CGFloat = 1
         if c.animated || unstable {
             flick = 1 + 0.08 * sin(t * 29) + 0.05 * sin(t * 67 + 1.3) + 0.04 * sin(t * 143 + 0.7)
@@ -169,21 +197,23 @@ enum SaberRenderer {
         let R = 4 + 8 * CGFloat(c.glowRadius)
         let seed = (c.animated || unstable) ? Int(t * 24) : 0
 
-        let body = unstable ? unstablePath(len, w, seed: seed) : capsule(-0.5, len, w)
+        let body = dark ? darksaberPath(len, w, seed: seed, crackle: c.animated)
+            : unstable ? unstablePath(len, w, seed: seed) : capsule(-0.5, len, w)
         let core = capsule(0, len - w * 0.2, w * (0.4 + 0.22 * CGFloat(c.coreWhiteness)))
-        glowShape(ctx, body: body, halo: capsule(-0.5, len, w * 0.9), core: core, c: c,
+        glowShape(ctx, body: body, halo: dark ? body : capsule(-0.5, len, w * 0.9), core: core, c: c,
                   intensity: I, radius: R, px: px)
 
-        if unstable {
+        if unstable || (dark && c.animated) {
+            let sparkRGB = dark ? RGB(0.92, 0.96, 1) : c.blade
             ctx.saveGState()
             ctx.setLineCap(.round)
-            ctx.setStrokeColor(c.blade.mix(.white, 0.35).cg(0.9))
-            ctx.setShadow(offset: .zero, blur: 3 * px, color: c.blade.cg())
+            ctx.setStrokeColor(sparkRGB.mix(.white, 0.35).cg(0.9))
+            ctx.setShadow(offset: .zero, blur: 3 * px, color: sparkRGB.cg())
             ctx.setLineWidth(0.45)
             for i in 0..<5 {
                 let y = len * (0.12 + 0.8 * hash(i, seed + 7))
                 let side: CGFloat = hash(i, seed + 3) > 0.5 ? 1 : -1
-                let x0 = side * w * 0.5
+                let x0 = side * w * (dark ? 0.72 : 0.5)
                 ctx.move(to: CGPoint(x: x0, y: y))
                 ctx.addLine(to: CGPoint(x: x0 + side * (1.2 + 2.2 * hash(i, seed + 11)), y: y + 1.5 * (hash(i, seed + 5) - 0.5)))
             }
@@ -465,6 +495,20 @@ enum SaberRenderer {
             diagWraps(ctx, top: -10.3, bottom: -19.5, width: 5.9, count: 7, color: rag.mix(.black, 0.5), clip: wrap)
             metal(ctx, poly([(-3, -19.7), (3.1, -19.7), (3.3, -22.4), (-2.6, -23.6)]), f)
             scratches(ctx, top: 0, bottom: -10, width: 6, seed: 21)
+
+        case .darksaber:
+            // Hooked claw on one side of an angled emitter, flat black body, silver band, ridged grip.
+            metal(ctx, poly([(-2.9, -4.6), (-2.9, -0.2), (-4.4, 3.4), (-1.5, 0.5), (2.9, 0.5), (3.1, -0.9), (2.9, -4.6)]), f, halfWidth: 3.5)
+            fill(ctx, rrect(-1.6, top: 0.2, 3.2, 1.3, r: 0.2), rubber, 0.9)
+            fill(ctx, rrect(-3.0, top: -4.6, 6.0, 1.0, r: 0.2), HiltFinish.silver.base)
+            seg(ctx, -5.6, 7.4, 5.8, f, r: 0.3)
+            fill(ctx, rrect(-0.5, top: -6.6, 1.0, 5.2, r: 0.4), HiltFinish.silver.light, 0.85)
+            dot(ctx, 1.9, -8.2, 0.5, a)
+            let grip = rrect(-2.7, top: -13.0, 5.4, 7.2, r: 0.4)
+            metal(ctx, grip, f.alt == .silver ? .gunmetal : f.alt, halfWidth: 2.7)
+            hRidges(ctx, top: -13.4, bottom: -19.8, width: 5.4, count: 6, color: rubber, thickness: 0.6)
+            metal(ctx, poly([(-2.9, -20.2), (2.9, -20.2), (2.9, -22.0), (1.2, -23.4), (-2.9, -23.4)]), f, halfWidth: 3)
+            fill(ctx, rrect(-2.9, top: -20.2, 5.8, 0.6, r: 0.2), HiltFinish.silver.base, 0.9)
 
         case .inquisitor:
             let center = CGPoint(x: 0, y: -8.2)
