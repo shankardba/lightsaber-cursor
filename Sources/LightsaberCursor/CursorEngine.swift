@@ -76,6 +76,8 @@ final class CursorEngine: ObservableObject {
     private var lastTrustCheck: CFTimeInterval = 0
     private var lastSecureCheck: CFTimeInterval = 0
     private var overSecureDialog = false
+    private var soundEngine: SaberSound?
+    private var lastSwing: CFTimeInterval = 0
     private var speed: CGFloat = 0
 
     private var ext: Double = 1
@@ -108,6 +110,9 @@ final class CursorEngine: ObservableObject {
 
         settings.$prefs.map(\.enabled).removeDuplicates().sink { [weak self] on in
             DispatchQueue.main.async { on ? self?.start() : self?.stop() }
+        }.store(in: &cancellables)
+        settings.$prefs.map(\.soundEnabled).removeDuplicates().sink { [weak self] on in
+            if !on { self?.soundEngine?.shutdown() }
         }.store(in: &cancellables)
 
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
@@ -151,6 +156,7 @@ final class CursorEngine: ObservableObject {
         overlays.removeAll()
         hover.reset()
         SystemCursor.restore()
+        soundEngine?.shutdown()
     }
 
     private func rebuildOverlays() {
@@ -162,9 +168,17 @@ final class CursorEngine: ObservableObject {
 
     private func onClick() {
         lastMoveTime = CACurrentMediaTime()
+        if settings.prefs.soundClash { playSound(.clash) }
         guard settings.prefs.clickSpark else { return }
         sparkStart = CACurrentMediaTime()
         sparkPoint = NSEvent.mouseLocation
+    }
+
+    func playSound(_ kind: SaberSound.Kind, force: Bool = false) {
+        let p = settings.prefs
+        guard force || p.soundEnabled else { return }
+        if soundEngine == nil { soundEngine = SaberSound() }
+        soundEngine?.play(kind, volume: p.soundVolume)
     }
 
     // MARK: Active saber resolution (per-app > after dark > base)
@@ -208,6 +222,10 @@ final class CursorEngine: ObservableObject {
         let moved = dist > 0.01
         if moved { lastMoveTime = now }
         speed += (dist / CGFloat(dt) - speed) * 0.35
+        if p.soundSwing && speed > 2400 && ext > 0.6 && now - lastSwing > 0.45 {
+            lastSwing = now
+            playSound(.swing)
+        }
         lastMouse = mouse
 
         if now - lastTrustCheck > 2 {
@@ -249,6 +267,7 @@ final class CursorEngine: ObservableObject {
         if ext < target {
             if wasRetracted {
                 wasRetracted = false
+                if p.soundIgnite { playSound(.ignite) }
                 if p.randomOnIgnite && displayedReason == "base" {
                     settings.randomize()
                     displayed = settings.prefs.saber
@@ -256,6 +275,7 @@ final class CursorEngine: ObservableObject {
             }
             ext = min(target, ext + dt / 0.18)
         } else if ext > target {
+            if ext >= 0.999 && p.soundIgnite { playSound(.retract) }
             ext = max(target, ext - dt / (pending != nil ? 0.14 : 0.35))
         }
         if ext <= 0.001 {

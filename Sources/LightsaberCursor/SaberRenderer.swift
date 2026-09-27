@@ -68,7 +68,7 @@ enum SaberRenderer {
         ctx.rotate(by: angle)
         ctx.translateBy(x: 0, y: -L)
         drawBlade(c, s, ctx, L: L, px: px)
-        drawHilt(c, ctx)
+        drawHilt(c, ctx, time: c.animated ? s.time : 0)
         drawHotspotMarker(c, s, ctx, L: L, px: px)
         ctx.restoreGState()
     }
@@ -331,7 +331,7 @@ enum SaberRenderer {
 
     // MARK: Hilts
 
-    static func drawHilt(_ c: SaberConfig, _ ctx: CGContext) {
+    static func drawHilt(_ c: SaberConfig, _ ctx: CGContext, time: Double = 0) {
         let f = c.finish
         let a = c.accent
         switch c.hilt {
@@ -477,6 +477,63 @@ enum SaberRenderer {
             diagWraps(ctx, top: -10.3, bottom: -19.5, width: 5.9, count: 7, color: rag.mix(.black, 0.5), clip: wrap)
             metal(ctx, poly([(-3, -19.7), (3.1, -19.7), (3.3, -22.4), (-2.6, -23.6)]), f)
             scratches(ctx, top: 0, bottom: -10, width: 6, seed: 21)
+
+        case .inquisitor:
+            let center = CGPoint(x: 0, y: -8.2)
+            let ring = CGMutablePath()
+            ring.addEllipse(in: CGRect(x: center.x - 7.4, y: center.y - 7.4, width: 14.8, height: 14.8))
+            ring.addEllipse(in: CGRect(x: center.x - 5.2, y: center.y - 5.2, width: 10.4, height: 10.4))
+            ctx.saveGState()
+            ctx.addPath(ring)
+            ctx.clip(using: .evenOdd)
+            let g = CGGradient(colorsSpace: srgb, colors: [f.light.cg(), f.base.cg(), f.dark.cg()] as CFArray, locations: [0, 0.45, 1])!
+            ctx.drawLinearGradient(g, start: CGPoint(x: -7, y: center.y + 7), end: CGPoint(x: 7, y: center.y - 7), options: [])
+            ctx.restoreGState()
+            ctx.setStrokeColor(f.dark.mix(.black, 0.5).cg(0.9))
+            ctx.setLineWidth(0.3)
+            ctx.addPath(ring)
+            ctx.strokePath()
+            let spin = CGFloat(time * 2.2)
+            for i in 0..<6 {
+                let ang = spin + CGFloat(i) * .pi / 3
+                let dotR: CGFloat = i % 2 == 0 ? 0.75 : 0.5
+                dot(ctx, center.x + cos(ang) * 6.3, center.y + sin(ang) * 6.3, dotR, i % 2 == 0 ? a : f.dark)
+            }
+            metal(ctx, rrect(-1.6, top: -1.6, 3.2, 13.2, r: 0.8), f.alt, halfWidth: 1.6)
+            hRidges(ctx, top: -5, bottom: -11.4, width: 3.2, count: 5, color: rubber, thickness: 0.55)
+            seg(ctx, 0.2, 2.8, 4.6, f, r: 0.6)
+
+        case .staff:
+            seg(ctx, 0, 3.6, 6.4, f, r: 0.8)
+            fill(ctx, rrect(-2.2, top: -1.0, 4.4, 1.2, r: 0.3), rubber, 0.8)
+            seg(ctx, -3.6, 26.2, 5.4, f)
+            for y in [-6.0, -9.0, -24.0, -27.0] as [CGFloat] {
+                fill(ctx, rrect(-2.85, top: y, 5.7, 0.9, r: 0.3), a, 0.9)
+            }
+            hRidges(ctx, top: -11.6, bottom: -21.4, width: 5.4, count: 9, color: rubber, thickness: 0.6)
+            dot(ctx, 1.4, -7.5, 0.55, RGB(hex: 0xE0332B))
+            seg(ctx, -29.8, 3.6, 6.4, f, r: 0.8)
+            fill(ctx, rrect(-2.2, top: -31.4, 4.4, 1.2, r: 0.3), rubber, 0.8)
+
+        case .clawed:
+            let left = CGMutablePath()
+            left.move(to: CGPoint(x: -2.2, y: -3.2))
+            left.addCurve(to: CGPoint(x: -4.2, y: 2.4), control1: CGPoint(x: -4.6, y: -2.2), control2: CGPoint(x: -5.2, y: 0.6))
+            left.addCurve(to: CGPoint(x: -1.6, y: -1.0), control1: CGPoint(x: -3.4, y: 0.8), control2: CGPoint(x: -2.4, y: -0.2))
+            left.closeSubpath()
+            var mirror = CGAffineTransform(scaleX: -1, y: 1)
+            let right = left.copy(using: &mirror)!
+            metal(ctx, left, f, halfWidth: 4.5)
+            metal(ctx, right, f, halfWidth: 4.5)
+            seg(ctx, 0, 3.4, 4.2, f, r: 0.6)
+            seg(ctx, -3.4, 6.2, 5.6, f)
+            metal(ctx, poly([(0, -4.4), (1.5, -6.5), (0, -8.6), (-1.5, -6.5)]), f.alt, halfWidth: 1.5)
+            dot(ctx, 0, -6.5, 0.5, a)
+            let grip = rrect(-2.5, top: -9.6, 5.0, 10)
+            metal(ctx, grip, f.alt, halfWidth: 2.5)
+            diagWraps(ctx, top: -9.8, bottom: -19.4, width: 5.0, count: 7, color: rubber, clip: grip)
+            metal(ctx, poly([(-2.8, -19.6), (2.8, -19.6), (2.1, -22.8), (0, -25), (-2.1, -22.8)]), f)
+            fill(ctx, rrect(-2.8, top: -19.6, 5.6, 0.8, r: 0.2), a, 0.9)
         }
     }
 

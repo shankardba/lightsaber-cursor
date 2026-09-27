@@ -44,6 +44,12 @@ struct Prefs: Codable, Equatable {
     var randomColor = true
     var randomSide: RandomSide = .any
     var randomOnIgnite = false
+
+    var soundEnabled = false
+    var soundVolume: Double = 0.5
+    var soundIgnite = true
+    var soundClash = true
+    var soundSwing = true
 }
 
 final class AppSettings: ObservableObject {
@@ -54,12 +60,19 @@ final class AppSettings: ObservableObject {
     }
 
     init() {
-        if let data = UserDefaults.standard.data(forKey: Self.key),
-           let p = try? JSONDecoder().decode(Prefs.self, from: data) {
-            prefs = p
-        } else {
-            prefs = Prefs()
-        }
+        prefs = Self.load() ?? Prefs()
+    }
+
+    /// Saved keys are laid over the current defaults, so settings survive when new options are added.
+    private static func load() -> Prefs? {
+        guard let data = UserDefaults.standard.data(forKey: key),
+              let saved = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let defaultsData = try? JSONEncoder().encode(Prefs()),
+              var merged = try? JSONSerialization.jsonObject(with: defaultsData) as? [String: Any]
+        else { return nil }
+        merged.merge(saved) { _, new in new }
+        guard let mergedData = try? JSONSerialization.data(withJSONObject: merged) else { return nil }
+        return try? JSONDecoder().decode(Prefs.self, from: mergedData)
     }
 
     private func save() {

@@ -13,7 +13,8 @@ enum ContactSheet {
         let hiltRowH: CGFloat = 70
         let stateRowH: CGFloat = 200
         let width = CGFloat(cols) * cellW
-        let height = CGFloat(sabersRows) * cellH + hiltRowH * 2 + stateRowH
+        let hiltRows = Int(ceil(Double(HiltStyle.allCases.count) / Double(cols)))
+        let height = CGFloat(sabersRows) * cellH + hiltRowH * CGFloat(hiltRows) + stateRowH
         let backing: CGFloat = 2
         guard let ctx = SaberRenderer.makeContext(CGSize(width: width, height: height), backing: backing) else { return }
         ctx.setFillColor(CGColor(srgbRed: 0.05, green: 0.06, blue: 0.09, alpha: 1))
@@ -61,7 +62,7 @@ enum ContactSheet {
             ("Retracting", SaberState(ext: 0.45, glow: 0)),
             ("Retracted", SaberState(ext: 0, glow: 0)),
         ]
-        let stateTop = hiltTop - hiltRowH * 2
+        let stateTop = hiltTop - hiltRowH * CGFloat(hiltRows)
         for (i, (name, st)) in states.enumerated() {
             let cell = CGRect(x: CGFloat(i) * cellW, y: stateTop - stateRowH, width: cellW, height: stateRowH)
             place(SaberRenderer.render(Presets.vader, st, scale: 1.25, backing: backing), in: cell)

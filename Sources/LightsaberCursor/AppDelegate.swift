@@ -147,6 +147,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         menu.addItem(check("After-Dark Switch", p.afterDark, #selector(toggleAfterDark)))
         menu.addItem(check("Per-App Sabers", p.perApp, #selector(togglePerApp)))
         menu.addItem(check("Randomize on Re-ignite", p.randomOnIgnite, #selector(toggleRandomIgnite)))
+        menu.addItem(check("Sounds", p.soundEnabled, #selector(toggleSounds)))
         menu.addItem(.separator())
 
         if !engine.axTrusted {
@@ -194,6 +195,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     @objc private func toggleAfterDark() { settings.prefs.afterDark.toggle() }
     @objc private func togglePerApp() { settings.prefs.perApp.toggle() }
     @objc private func toggleRandomIgnite() { settings.prefs.randomOnIgnite.toggle() }
+    @objc private func toggleSounds() { settings.prefs.soundEnabled.toggle() }
     @objc private func grantAX() {
         Accessibility.prompt()
         Accessibility.openSettings()

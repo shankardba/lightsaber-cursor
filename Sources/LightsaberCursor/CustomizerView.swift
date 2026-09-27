@@ -439,6 +439,16 @@ struct BehaviorTab: View {
                 Toggle("Spark on click", isOn: $settings.prefs.clickSpark)
                 Toggle("Motion trail on fast swings", isOn: $settings.prefs.motionTrail)
             }
+            Section("Sounds") {
+                Toggle("Play sounds", isOn: $settings.prefs.soundEnabled)
+                Group {
+                    LabeledSlider(title: "Volume", value: $settings.prefs.soundVolume, range: 0...1)
+                    soundRow("Ignite and retract (idle, auto-switch)", isOn: $settings.prefs.soundIgnite, kinds: [.ignite, .retract])
+                    soundRow("Clash on click", isOn: $settings.prefs.soundClash, kinds: [.clash])
+                    soundRow("Swing whoosh on fast moves", isOn: $settings.prefs.soundSwing, kinds: [.swing])
+                }
+                .disabled(!settings.prefs.soundEnabled)
+            }
             Section("Randomizer") {
                 Toggle("Randomize hilt", isOn: $settings.prefs.randomHilt)
                 Toggle("Randomize color", isOn: $settings.prefs.randomColor)
@@ -476,6 +486,20 @@ struct BehaviorTab: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    private func soundRow(_ title: String, isOn: Binding<Bool>, kinds: [SaberSound.Kind]) -> some View {
+        HStack {
+            Toggle(title, isOn: isOn)
+            Spacer()
+            Button {
+                for (i, k) in kinds.enumerated() {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * 0.75) { engine.playSound(k, force: true) }
+                }
+            } label: {
+                Label("Test", systemImage: "speaker.wave.2.fill")
+            }
+        }
     }
 }
 

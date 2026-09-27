@@ -55,7 +55,7 @@ enum Faction: String, Codable, CaseIterable, Identifiable {
 }
 
 enum HiltStyle: String, Codable, CaseIterable, Identifiable {
-    case classic, ribbed, slim, curved, crossguard, shoto, jagged, angular, ornate, banded, worn
+    case classic, ribbed, slim, curved, crossguard, shoto, jagged, angular, ornate, banded, worn, inquisitor, staff, clawed
     var id: String { rawValue }
     var displayName: String {
         switch self {
@@ -70,6 +70,9 @@ enum HiltStyle: String, Codable, CaseIterable, Identifiable {
         case .ornate: "Ornate"
         case .banded: "Banded"
         case .worn: "Worn"
+        case .inquisitor: "Inquisitor"
+        case .staff: "Staff"
+        case .clawed: "Clawed"
         }
     }
     var length: CGFloat {
@@ -85,6 +88,9 @@ enum HiltStyle: String, Codable, CaseIterable, Identifiable {
         case .ornate: 24
         case .banded: 20.2
         case .worn: 23.6
+        case .inquisitor: 16
+        case .staff: 33.4
+        case .clawed: 25
         }
     }
 }
@@ -222,6 +228,15 @@ enum Presets {
         p("Qui-Gon Jinn", .jedi, .slim, .black, accent: 0xC8CCD2, blade: 0x57FF2E),
         p("Kanan Jarrus", .jedi, .slim, .gunmetal, accent: 0x8A6A40, blade: 0x3F9BFF),
         p("Ezra Bridger", .jedi, .classic, .gunmetal, accent: 0x2FAF6A, blade: 0x4CFF6B),
+        p("Kit Fisto", .jedi, .slim, .silver, accent: 0x2FAF6A, blade: 0x3CFF6A),
+        p("Luminara Unduli", .jedi, .curved, .silver, accent: 0x2F6F5A, blade: 0x4CFF4C),
+        p("Plo Koon", .jedi, .classic, .gunmetal, accent: 0xB05A2A, blade: 0x3D8BFF),
+        p("Shaak Ti", .jedi, .ornate, .silver, accent: 0xC04040, blade: 0x3FA0FF),
+        p("Ki-Adi-Mundi", .jedi, .slim, .gunmetal, accent: 0x8A6A40, blade: 0x3A7FFF),
+        p("Cal Kestis (Blue)", .jedi, .classic, .gunmetal, accent: 0xC06A20, blade: 0x3D9BFF, animated: true),
+        p("Cal Kestis (Orange)", .jedi, .classic, .gunmetal, accent: 0xC06A20, blade: 0xFF8A1F, animated: true),
+        p("Leia Organa", .jedi, .banded, .silver, accent: 0x2F7BFF, blade: 0x4D9BFF),
+        p("Ben Solo", .jedi, .classic, .silver, accent: 0xE0332B, blade: 0x3D8BFF),
         p("Blue Lightsaber", .jedi, .classic, .silver, accent: 0x3D8BFF, blade: 0x3D8BFF, animated: true),
 
         vader,
@@ -231,9 +246,22 @@ enum Presets {
         p("Darth Sidious", .sith, .ornate, .silver, accent: 0xD9B04C, blade: 0xFF2323, animated: true),
         p("Marrok", .sith, .worn, .gunmetal, accent: 0xB0201A, blade: 0xFF3B1F, animated: true),
         p("Shin Hati", .sith, .angular, .black, accent: 0xC04020, blade: 0xFF5418),
+        p("Darth Maul", .sith, .staff, .black, accent: 0xC8CCD2, blade: 0xFF1E1E, animated: true),
+        p("Savage Opress", .sith, .staff, .gunmetal, accent: 0x9C6A3C, blade: 0xFF2A2A),
+        p("Asajj Ventress", .sith, .curved, .gunmetal, accent: 0xC8CCD2, blade: 0xFF2A2A),
+        p("Grand Inquisitor", .sith, .inquisitor, .black, accent: 0xE0332B, blade: 0xFF2323, animated: true),
+        p("Second Sister", .sith, .inquisitor, .black, accent: 0xC8CCD2, blade: 0xFF2A2A, animated: true),
+        p("Reva (Third Sister)", .sith, .inquisitor, .gunmetal, accent: 0xB0201A, blade: 0xFF1A10, animated: true),
+        p("Starkiller", .sith, .worn, .gunmetal, accent: 0xE0332B, blade: 0xFF2323, animated: true),
+        p("Darth Revan", .sith, .clawed, .black, accent: 0x8A2BE2, blade: 0xFF2323, animated: true),
 
         p("Ahsoka Tano (White)", .grey, .ornate, .white, accent: 0x2A2A2A, blade: 0xEEF4FF, animated: true),
         p("Sabine Wren (Darksaber)", .grey, .angular, .black, accent: 0xC8CCD2, blade: 0x0A0A0C, style: .darksaber, animated: true),
+        p("Din Djarin (Darksaber)", .grey, .ribbed, .gunmetal, accent: 0xC8CCD2, blade: 0x0A0A0C, style: .darksaber, animated: true),
+        p("Baylan Skoll", .grey, .angular, .gunmetal, accent: 0xD9B04C, blade: 0xFF7A18, thickness: 1.15),
+        p("Mara Jade", .grey, .slim, .silver, accent: 0xB02070, blade: 0xFF2E9A),
+        p("Revan (Jedi)", .grey, .clawed, .gunmetal, accent: 0x6A4EB0, blade: 0xA24DFF, animated: true),
+        p("Starkiller (Redeemed)", .grey, .worn, .gunmetal, accent: 0x2F7BFF, blade: 0x3D8BFF, animated: true),
     ]
 
     static let defaultSaber = obiWan
@@ -278,8 +306,8 @@ enum Randomizer {
             c.animated = Bool.random()
         }
         if hilt {
-            let sithHilts: [HiltStyle] = [.ribbed, .jagged, .curved, .crossguard, .angular, .worn, .ornate]
-            let jediHilts: [HiltStyle] = [.classic, .slim, .shoto, .ornate, .banded, .worn, .angular]
+            let sithHilts: [HiltStyle] = [.ribbed, .jagged, .curved, .crossguard, .angular, .worn, .ornate, .inquisitor, .staff, .clawed]
+            let jediHilts: [HiltStyle] = [.classic, .slim, .shoto, .ornate, .banded, .worn, .angular, .curved, .clawed]
             c.hilt = (faction == .sith ? sithHilts : jediHilts).randomElement()!
             let finishes: [HiltFinish] = faction == .sith
                 ? [.black, .black, .gunmetal, .silver, .brass]
