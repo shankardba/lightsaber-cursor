@@ -1,7 +1,15 @@
 import AVFoundation
 
-/// Lightsaber effects synthesized at launch (detuned buzz + filtered noise), played on a small voice pool.
+/// Sound sources, in priority order:
+/// 1. `~/Library/Application Support/Lightsaber Cursor/Sounds/{hum,ignite,retract,swing,clash}.wav` (any format AVAudioFile reads)
+/// 2. The bundled recorded `hum.wav`; ignite, retract and swing are derived from it by pitch-sweeping the hum
+/// 3. Synthesized fallbacks
 final class SaberSound {
+    static var overrideDirectory: URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Lightsaber Cursor/Sounds", isDirectory: true)
+    }
+
     enum Kind: CaseIterable { case ignite, retract, clash, swing }
 
     private let engine = AVAudioEngine()
@@ -31,9 +39,99 @@ final class SaberSound {
         engine.attach(humPitch)
         engine.connect(humPlayer, to: humPitch, format: format)
         engine.connect(humPitch, to: engine.mainMixerNode, format: format)
-        for k in Kind.allCases { buffers[k] = synthesize(k) }
-        humBuffer = synthesizeHum()
+        let hum = loadSamples("hum")
+        humBuffer = hum.flatMap { makeBuffer($0) } ?? synthesizeHum()
+        for k in Kind.allCases {
+            if let own = loadSamples(k.fileName, bundled: false) {
+                buffers[k] = makeBuffer(own)
+            } else if let hum, let derived = derive(k, from: hum) {
+                buffers[k] = makeBuffer(derived)
+            } else {
+                buffers[k] = synthesize(k)
+            }
+        }
     }
+
+    // MARK: Recorded sources
+
+    private func loadSamples(_ name: String, bundled: Bool = true) -> [Float]? {
+        let override = Self.overrideDirectory
+        let candidates = ["wav", "aif", "aiff", "m4a", "mp3", "caf"].map { override.appendingPathComponent("\(name).\($0)") }
+        let url = candidates.first { FileManager.default.fileExists(atPath: $0.path) }
+            ?? (bundled ? Bundle.main.url(forResource: name, withExtension: "wav", subdirectory: "Sounds") : nil)
+        guard let url, let file = try? AVAudioFile(forReading: url),
+              let src = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: AVAudioFrameCount(file.length)),
+              (try? file.read(into: src)) != nil else { return nil }
+        if file.processingFormat.sampleRate == format.sampleRate && file.processingFormat.channelCount == 1,
+           let ch = src.floatChannelData?[0] {
+            return Array(UnsafeBufferPointer(start: ch, count: Int(src.frameLength)))
+        }
+        guard let converter = AVAudioConverter(from: file.processingFormat, to: format) else { return nil }
+        let ratio = format.sampleRate / file.processingFormat.sampleRate
+        guard let dst = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(Double(src.frameLength) * ratio) + 1024) else { return nil }
+        var fed = false
+        var err: NSError?
+        converter.convert(to: dst, error: &err) { _, status in
+            if fed {
+                status.pointee = .endOfStream
+                return nil
+            }
+            fed = true
+            status.pointee = .haveData
+            return src
+        }
+        guard err == nil, let ch = dst.floatChannelData?[0] else { return nil }
+        return Array(UnsafeBufferPointer(start: ch, count: Int(dst.frameLength)))
+    }
+
+    private func makeBuffer(_ samples: [Float]) -> AVAudioPCMBuffer? {
+        guard !samples.isEmpty,
+              let buf = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(samples.count)),
+              let out = buf.floatChannelData?[0] else { return nil }
+        buf.frameLength = AVAudioFrameCount(samples.count)
+        samples.withUnsafeBufferPointer { out.update(from: $0.baseAddress!, count: samples.count) }
+        return buf
+    }
+
+    /// Reads through the looping hum at a time-varying rate (pitch) and gain, like a tape being sped up or slowed down.
+    private func sweep(_ hum: [Float], seconds: Double, rate: (Double) -> Double, gain: (Double) -> Double) -> [Float] {
+        let n = Int(format.sampleRate * seconds)
+        var out = [Float](repeating: 0, count: n)
+        var pos = Double(hum.count / 3)
+        for i in 0..<n {
+            let u = Double(i) / Double(n)
+            let i0 = Int(pos) % hum.count
+            let i1 = (i0 + 1) % hum.count
+            let f = Float(pos - floor(pos))
+            out[i] = (hum[i0] * (1 - f) + hum[i1] * f) * Float(gain(u))
+            pos += rate(u)
+        }
+        return out
+    }
+
+    private func derive(_ kind: Kind, from hum: [Float]) -> [Float]? {
+        switch kind {
+        case .ignite:
+            // Starts low and snaps up to full pitch, with a short bright swell.
+            return sweep(hum, seconds: 0.7,
+                         rate: { u in 0.3 + 0.7 * min(1, pow(u / 0.55, 0.6)) + 0.12 * sin(.pi * min(1, u / 0.55)) },
+                         gain: { u in min(1, u / 0.03) * (0.75 + 0.35 * sin(.pi * min(1, u / 0.6))) * (u > 0.85 ? 1 - (u - 0.85) / 0.15 * 0.4 : 1) })
+        case .retract:
+            return sweep(hum, seconds: 0.55,
+                         rate: { u in 1.0 - 0.72 * pow(u, 1.3) },
+                         gain: { u in 0.85 * pow(1 - u, 1.2) * min(1, (1 - u) / 0.02) })
+        case .swing:
+            return sweep(hum, seconds: 0.42,
+                         rate: { u in 1 + 0.4 * sin(.pi * u) },
+                         gain: { u in 0.35 + 0.75 * pow(sin(.pi * u), 1.4) })
+        case .clash:
+            return nil
+        }
+    }
+
+
+    func bufferFor(_ kind: Kind) -> AVAudioPCMBuffer? { buffers[kind] }
+    var humLoopBuffer: AVAudioPCMBuffer? { humBuffer }
 
     private func ensureRunning() -> Bool {
         if engine.isRunning { return true }
@@ -167,5 +265,31 @@ final class SaberSound {
             out[i] = Float(tanh(s * 1.3) * 0.7 * edge)
         }
         return buf
+    }
+}
+
+extension SaberSound.Kind {
+    var fileName: String {
+        switch self {
+        case .ignite: "ignite"
+        case .retract: "retract"
+        case .clash: "clash"
+        case .swing: "swing"
+        }
+    }
+}
+
+extension SaberSound {
+    /// Debug aid: `LightsaberCursor --export-sounds <dir>` writes every effect buffer as WAV.
+    func export(to dir: String) {
+        var all: [(String, AVAudioPCMBuffer?)] = Kind.allCases.map { ($0.fileName, bufferFor($0)) }
+        all.append(("hum", humLoopBuffer))
+        for (name, buf) in all {
+            guard let buf else { continue }
+            let url = URL(fileURLWithPath: dir).appendingPathComponent("\(name).wav")
+            if let f = try? AVAudioFile(forWriting: url, settings: buf.format.settings) {
+                try? f.write(from: buf)
+            }
+        }
     }
 }

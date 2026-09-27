@@ -6,6 +6,11 @@ if let i = args.firstIndex(of: "--render-sheet"), i + 1 < args.count {
     exit(0)
 }
 
+if let i = args.firstIndex(of: "--export-sounds"), i + 1 < args.count {
+    SaberSound().export(to: args[i + 1])
+    exit(0)
+}
+
 let app = NSApplication.shared
 let delegate = AppDelegate()
 app.delegate = delegate

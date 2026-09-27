@@ -9,7 +9,7 @@ A personal macOS menu bar app that turns the mouse pointer into a lightsaber.
 - 40 character presets (Jedi, Sith, Grey), and you can save your own to "My Sabers".
 - The randomizer can change the hilt, the color and the side (Any / Jedi / Sith). It can also pick a new random saber every time the blade re-ignites.
 - Auto-switch: an after-dark saber (following macOS Dark Mode or set hours) and per-app sabers. Priority is per-app, then after dark, then your chosen saber.
-- Optional synthesized sounds, off by default: ignite/retract, clash on click and swing whoosh, each with its own toggle and a volume slider.
+- Optional sounds, off by default: ignite/retract, clash on click, swing whoosh and a motion hum. The hum's pitch and volume follow cursor speed, and swings are pitched by how fast they are. Each sound has its own toggle and there's a volume slider.
 - Toggle it from the menu bar or with ⌃⌥⌘L. Launch at login is optional.
 
 All saber art is drawn in code, so nothing is copied from cursor sites.
@@ -42,3 +42,15 @@ macOS has no public API for replacing the system cursor, and Mousecape-style pat
 3. Shows the real pointer while it's over secure system dialogs (password and keychain prompts), which nothing can draw on top of.
 
 Quitting the app, or the app crashing, restores the normal pointer automatically.
+
+## Sounds
+
+The hum is a recorded loop in `Resources/Sounds/hum.wav`, cut from a downloaded lightsaber hum. Ignite, retract and swing are made by pitch-sweeping that hum. The clash is synthesized.
+
+To use your own recordings, drop any of `hum`, `ignite`, `retract`, `swing` or `clash` (`.wav`, `.aif`, `.m4a`, `.mp3` or `.caf`) into:
+
+```
+~/Library/Application Support/Lightsaber Cursor/Sounds/
+```
+
+Then restart the app. Any file found there replaces the built-in version of that sound. To check what the app will play, export every sound with `LightsaberCursor --export-sounds <dir>`.
