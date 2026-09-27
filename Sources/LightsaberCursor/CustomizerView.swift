@@ -230,8 +230,8 @@ struct TestStrip: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
                 HStack(spacing: 14) {
-                    Button("Button") {}
-                    Button("Link") {}.buttonStyle(.link)
+                    Button("Button") {}.fixedSize()
+                    Button("Link") {}.buttonStyle(.link).fixedSize()
                     Toggle("Checkbox", isOn: $checked).fixedSize()
                     Menu("Menu") { Button("Item") {} }.fixedSize()
                     Text("Plain text (no glow)").fixedSize().foregroundStyle(.tertiary)

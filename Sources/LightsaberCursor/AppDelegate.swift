@@ -48,7 +48,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 final class StatusMenuController: NSObject, NSMenuDelegate {
-    private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+    private static let autosaveName = "LightsaberCursorStatusItem"
+
+    /// New status items land at the far left of the status area, which sits under the notch on MacBooks;
+    /// seed a position (points from the right screen edge) near Control Center once. ⌘-drag still overrides it.
+    private static func seedPosition() {
+        let d = UserDefaults.standard
+        let flag = "statusItemPositionSeeded.v1"
+        guard !d.bool(forKey: flag) else { return }
+        d.set(true, forKey: flag)
+        d.set(Double(560), forKey: "NSStatusItem Preferred Position \(autosaveName)")
+    }
+
+    private let item: NSStatusItem = {
+        StatusMenuController.seedPosition()
+        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        item.autosaveName = StatusMenuController.autosaveName
+        item.isVisible = true
+        return item
+    }()
     private let settings: AppSettings
     private let engine: CursorEngine
     private let openCustomizer: () -> Void
