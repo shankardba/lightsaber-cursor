@@ -43,7 +43,15 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 </dict>
 </plist>
 PLIST
-codesign --force --sign - --identifier "$BUNDLE_ID" "$APP"
+# A stable self-signed identity keeps macOS privacy grants (Accessibility) across rebuilds; ad-hoc is the fallback.
+SIGN_NAME="Lightsaber Cursor Local Signing"
+SIGN_ID=$(security find-identity -p codesigning 2>/dev/null | awk -v n="\"$SIGN_NAME\"" 'index($0, n) {print $2; exit}')
+if [[ -n "$SIGN_ID" ]]; then
+    codesign --force --sign "$SIGN_ID" --identifier "$BUNDLE_ID" "$APP"
+else
+    echo "warning: '$SIGN_NAME' certificate not found; ad-hoc signing (Accessibility must be re-granted after each rebuild)"
+    codesign --force --sign - --identifier "$BUNDLE_ID" "$APP"
+fi
 
 mkdir -p "$INSTALL_DIR"
 pkill -x LightsaberCursor 2>/dev/null || true

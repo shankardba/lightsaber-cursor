@@ -23,7 +23,9 @@ Requires only the Xcode Command Line Tools; SwiftPM is not used.
 open ~/Applications/"Lightsaber Cursor.app"
 ```
 
-Grant **System Settings → Privacy & Security → Accessibility** access so the app can see what's under the pointer (needed for the hover glow). The build is ad-hoc signed, so after a rebuild macOS may need that permission toggled off and on again.
+Grant **System Settings → Privacy & Security → Accessibility** access so the app can see what's under the pointer (needed for the hover glow). On macOS 26, also enable the app under **System Settings → Menu Bar → Allow in the Menu Bar**, or its icon stays hidden.
+
+`build.sh` signs with a self-signed "Lightsaber Cursor Local Signing" certificate from the login keychain when it exists. The app's identity then stays stable, so the Accessibility grant survives rebuilds. Without the certificate it falls back to ad-hoc signing, and the permission must be re-granted after every rebuild.
 
 To review the artwork without launching the app, render a contact sheet of every preset, hilt and state:
 
