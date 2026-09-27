@@ -54,10 +54,11 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
     /// seed a position (points from the right screen edge) near Control Center once. ⌘-drag still overrides it.
     private static func seedPosition() {
         let d = UserDefaults.standard
-        let flag = "statusItemPositionSeeded.v1"
+        let flag = "statusItemPositionSeeded.v2"
         guard !d.bool(forKey: flag) else { return }
         d.set(true, forKey: flag)
-        d.set(Double(560), forKey: "NSStatusItem Preferred Position \(autosaveName)")
+        // Between Now Playing (455) and Focus (395) so it stays right of the notch.
+        d.set(Double(425), forKey: "NSStatusItem Preferred Position \(autosaveName)")
     }
 
     private let item: NSStatusItem = {
