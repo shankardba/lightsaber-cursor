@@ -36,6 +36,32 @@ enum SystemCursor {
     }
 }
 
+/// Password, keychain and permission prompts are drawn above every app window and can't be covered,
+/// so over those the real pointer is shown instead of the saber.
+enum SecureDialogs {
+    private static let owners: Set<String> = [
+        "SecurityAgent", "coreautha", "universalAccessAuthWarn", "UserNotificationCenter",
+        "CoreServicesUIAgent", "ScreenSaverEngine", "loginwindow",
+    ]
+    private static let ownPID = ProcessInfo.processInfo.processIdentifier
+    private static let highLayer = Int(CGWindowLevelForKey(.screenSaverWindow))
+
+    /// `point` is in global CoreGraphics coordinates (top-left origin).
+    static func cover(_ point: CGPoint) -> Bool {
+        guard let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else { return false }
+        for w in list {
+            if (w[kCGWindowOwnerPID as String] as? pid_t) == ownPID { continue }
+            let owner = w[kCGWindowOwnerName as String] as? String ?? ""
+            let layer = w[kCGWindowLayer as String] as? Int ?? 0
+            guard owners.contains(owner) || layer >= highLayer else { continue }
+            guard let dict = w[kCGWindowBounds as String] as? NSDictionary,
+                  let rect = CGRect(dictionaryRepresentation: dict), rect.contains(point) else { continue }
+            return true
+        }
+        return false
+    }
+}
+
 enum Accessibility {
     static var isTrusted: Bool { AXIsProcessTrusted() }
 

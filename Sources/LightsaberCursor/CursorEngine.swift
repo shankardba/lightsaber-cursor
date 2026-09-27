@@ -74,6 +74,8 @@ final class CursorEngine: ObservableObject {
     private var lastHide: CFTimeInterval = 0
     private var lastResolve: CFTimeInterval = 0
     private var lastTrustCheck: CFTimeInterval = 0
+    private var lastSecureCheck: CFTimeInterval = 0
+    private var overSecureDialog = false
     private var speed: CGFloat = 0
 
     private var ext: Double = 1
@@ -220,6 +222,18 @@ final class CursorEngine: ObservableObject {
                 hover.poll()
             }
         }
+        if now - lastSecureCheck > 0.12 {
+            lastSecureCheck = now
+            let secure = CGEvent(source: nil).map { SecureDialogs.cover($0.location) } ?? false
+            if secure != overSecureDialog {
+                overSecureDialog = secure
+                if secure { SystemCursor.restore() } else { lastHide = 0 }
+            }
+        }
+        if overSecureDialog {
+            hideAll()
+            return
+        }
         if now - lastHide > 0.2 {
             lastHide = now
             SystemCursor.ensureHidden()
@@ -257,6 +271,17 @@ final class CursorEngine: ObservableObject {
         glow += (glowTarget - glow) * min(1, dt * 14)
 
         render(now: now, mouse: mouse, prefs: p)
+    }
+
+    private func hideAll() {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        for w in overlays {
+            w.saberLayer.isHidden = true
+            w.sparkLayer.isHidden = true
+            w.trailLayers.forEach { $0.isHidden = true }
+        }
+        CATransaction.commit()
     }
 
     private func render(now: CFTimeInterval, mouse: CGPoint, prefs p: Prefs) {
