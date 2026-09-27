@@ -286,8 +286,9 @@ enum Randomizer {
                 : HiltFinish.allCases
             c.finish = finishes.randomElement()!
             c.accent = [RGB(hex: 0xE0332B), RGB(hex: 0xD9B04C), RGB(hex: 0x1C1C1C), RGB(hex: 0xC8CCD2), RGB(hex: 0x2F7BFF), RGB(hex: 0x8A6A40)].randomElement()!
-            c.bladeLength = c.hilt == .shoto ? 0.72 : Double.random(in: 0.9...1.08)
         }
+        c.bladeLength = 1
+        c.thickness = 1
         if hilt || color { c.faction = faction }
         c.name = name(for: c.faction)
         c.id = "random.\(UUID().uuidString)"
