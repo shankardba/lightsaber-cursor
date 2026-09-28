@@ -96,7 +96,7 @@ enum HiltStyle: String, Codable, CaseIterable, Identifiable {
         case .clawed: 25
         case .darksaber: 22.2
         case .ancient: 17.6
-        case .plasma: 15.4
+        case .plasma: 10.5
         }
     }
 }

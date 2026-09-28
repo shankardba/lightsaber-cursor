@@ -34,7 +34,9 @@ enum SaberRenderer {
     }
 
     static func layout(_ c: SaberConfig, scale: CGFloat, tight: Bool = false) -> (size: CGSize, hotspot: CGPoint) {
-        let total = bladeLength(c) + c.hilt.length + 2
+        // The plasma blade's crescents reach below the emitter, so reserve room for them on short hilts.
+        let hiltSpan = c.bladeStyle == .plasma ? max(c.hilt.length, 14.5) : c.hilt.length
+        let total = bladeLength(c) + hiltSpan + 2
         let pad = tight ? 7 : 18 + 26 * CGFloat(c.glowRadius)
         let w = (total * sin(angle) + 2 * pad) * scale
         let h = (total * cos(angle) + 2 * pad) * scale
@@ -76,7 +78,7 @@ enum SaberRenderer {
 
     /// Horizontal hilt-only icon (emitter pointing right) for pickers.
     static func renderHiltIcon(_ c: SaberConfig, height: CGFloat, backing: CGFloat) -> RenderedImage? {
-        let s = height / 12
+        let s = height / (c.hilt == .plasma ? 14 : 12)
         let size = CGSize(width: ceil((c.hilt.length + 6) * s), height: ceil(height))
         guard let ctx = makeContext(size, backing: backing) else { return nil }
         ctx.translateBy(x: size.width - 3 * s, y: size.height / 2)
@@ -239,45 +241,69 @@ enum SaberRenderer {
         ctx.strokePath()
     }
 
-    /// Twin plasma prongs (energy-sword style): they rise apart from the hilt and meet in one point at the tip.
-    static func plasmaOuter(_ u: CGFloat, _ w: CGFloat) -> CGFloat { w * 1.05 * pow(1 - u, 0.75) * (1 + 0.3 * u) }
-    static func plasmaInner(_ u: CGFloat, _ w: CGFloat) -> CGFloat { w * 0.32 * pow(1 - u, 1.6) }
-
-    static func plasmaPath(_ len: CGFloat, _ w: CGFloat) -> CGPath {
-        let p = CGMutablePath()
-        let n = 28
-        for sx in [CGFloat(-1), 1] {
-            var pts: [CGPoint] = []
-            for i in 0...n {
-                let u = CGFloat(i) / CGFloat(n)
-                pts.append(CGPoint(x: sx * plasmaOuter(u, w), y: -0.5 + u * (len + 0.5)))
-            }
-            for i in stride(from: n - 1, through: 0, by: -1) {
-                let u = CGFloat(i) / CGFloat(n)
-                pts.append(CGPoint(x: sx * plasmaInner(u, w), y: -0.5 + u * (len + 0.5)))
-            }
-            p.addLines(between: pts)
-            p.closeSubpath()
+    /// Energy-sword outline for the right-hand prong, sampled tip → bottom point along both edges.
+    /// Each prong is a long straight blade with its own tip; below the neck it sweeps out and down into a
+    /// crescent, and the two crescents ring the handle. The hotspot (0, len) sits between the two tips.
+    static func plasmaEdges(_ len: CGFloat, thickness k: CGFloat) -> (outer: [CGPoint], inner: [CGPoint]) {
+        func line(_ a: CGPoint, _ b: CGPoint, _ n: Int) -> [CGPoint] {
+            (0...n).map { i in let t = CGFloat(i) / CGFloat(n); return CGPoint(x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t) }
         }
-        return p
+        func cubic(_ p0: CGPoint, _ c1: CGPoint, _ c2: CGPoint, _ p3: CGPoint, _ n: Int, includeStart: Bool = false) -> [CGPoint] {
+            ((includeStart ? 0 : 1)...n).map { i in
+                let t = CGFloat(i) / CGFloat(n), m = 1 - t
+                let a = m * m * m, b = 3 * m * m * t, c = 3 * m * t * t, d = t * t * t
+                return CGPoint(x: a * p0.x + b * c1.x + c * c2.x + d * p3.x, y: a * p0.y + b * c1.y + c * c2.y + d * p3.y)
+            }
+        }
+        let tip = CGPoint(x: 0.6, y: len)
+        let bottom = CGPoint(x: 4.6, y: -14.5)
+        let neckOuter = CGPoint(x: 3.4, y: 3.0)
+        let wing = CGPoint(x: 8.2, y: -4.5)
+        let neckInner = CGPoint(x: 0.9, y: -0.8)
+        let ring = CGPoint(x: 5.4, y: -5.8)
+        let outer = cubic(tip, CGPoint(x: 1.4, y: len * 0.6), CGPoint(x: 2.9, y: len * 0.25), neckOuter, 24, includeStart: true)
+            + cubic(neckOuter, CGPoint(x: 6.4, y: 2.0), CGPoint(x: 8.6, y: -1.5), wing, 12)
+            + cubic(wing, CGPoint(x: 7.8, y: -9.5), CGPoint(x: 6.0, y: -12.8), bottom, 12)
+        let inner = line(tip, neckInner, 24)
+            + cubic(neckInner, CGPoint(x: 3.0, y: -0.8), CGPoint(x: 5.2, y: -2.6), ring, 12)
+            + cubic(ring, CGPoint(x: 5.6, y: -8.5), CGPoint(x: 5.0, y: -11.8), bottom, 12)
+        let scaleX = { (pts: [CGPoint]) in pts.map { CGPoint(x: $0.x * k, y: $0.y) } }
+        return (scaleX(outer), scaleX(inner))
     }
 
-    static func drawPlasma(_ c: SaberConfig, _ ctx: CGContext, len: CGFloat, w: CGFloat, intensity I: CGFloat, radius R: CGFloat, px: CGFloat) {
-        let body = plasmaPath(len, w)
+    static func drawPlasma(_ c: SaberConfig, _ ctx: CGContext, L: CGFloat, e: CGFloat, intensity I: CGFloat,
+                           radius R: CGFloat, px: CGFloat, seed: Int) {
+        let (outer, inner) = plasmaEdges(L, thickness: CGFloat(c.thickness))
+        // Igniting grows the whole energy shape out of the neck; retracting shrinks it back in.
+        let grow = { (p: CGPoint, sx: CGFloat) in CGPoint(x: p.x * sx * e, y: p.y * e) }
+        let body = CGMutablePath()
+        for sx in [CGFloat(-1), 1] {
+            body.addLines(between: (outer + inner.reversed()).map { grow($0, sx) })
+            body.closeSubpath()
+        }
         glowShape(ctx, body: body, halo: body, core: nil, c: c, intensity: I, radius: R, px: px)
+
         let hot = c.blade.mix(.white, min(1, 0.55 + 0.45 * c.coreWhiteness))
         ctx.saveGState()
+        ctx.addPath(body)
+        ctx.clip()
         ctx.setLineCap(.round)
         ctx.setLineJoin(.round)
-        ctx.setStrokeColor(hot.cg())
-        ctx.setLineWidth(0.45)
         for sx in [CGFloat(-1), 1] {
-            let n = 24
-            ctx.move(to: CGPoint(x: sx * (plasmaOuter(0, w) + plasmaInner(0, w)) / 2, y: 0))
-            for i in 1...n {
-                let u = CGFloat(i) / CGFloat(n) * 0.96
-                ctx.addLine(to: CGPoint(x: sx * (plasmaOuter(u, w) + plasmaInner(u, w)) / 2, y: u * len))
+            let mid = zip(outer, inner).map { CGPoint(x: ($0.x + $1.x) / 2, y: ($0.y + $1.y) / 2) }
+            ctx.setStrokeColor(hot.cg(0.9))
+            ctx.setLineWidth(0.5 * e)
+            ctx.addLines(between: mid.dropFirst(2).map { grow($0, sx) })
+            ctx.strokePath()
+            // Lightning veins: the centreline jittered sideways, re-seeded each frame when animated.
+            ctx.setStrokeColor(RGB.white.cg(0.75))
+            ctx.setLineWidth(0.22 * e)
+            let veins = mid.enumerated().dropFirst(2).map { i, p -> CGPoint in
+                let o = outer[i], n = inner[i]
+                let jitter = (hash(i + (sx > 0 ? 300 : 0), seed) - 0.5) * 0.8
+                return CGPoint(x: p.x + (o.x - n.x) * 0.5 * jitter, y: p.y + (o.y - n.y) * 0.5 * jitter)
             }
+            ctx.addLines(between: veins.map { grow($0, sx) })
             ctx.strokePath()
         }
         ctx.restoreGState()
@@ -340,7 +366,7 @@ enum SaberRenderer {
             return
         }
         if c.bladeStyle == .plasma {
-            drawPlasma(c, ctx, len: len, w: w, intensity: I, radius: R, px: px)
+            drawPlasma(c, ctx, L: L, e: e, intensity: I, radius: R, px: px, seed: seed)
             return
         }
 
@@ -743,36 +769,32 @@ enum SaberRenderer {
             metal(ctx, pommel, f, halfWidth: 3.4)
 
         case .plasma:
-            // Short dark handle with curved guard brackets and glowing slots lit in the blade color.
+            // One energy-sword handle blending the Halo designs: a winged housing held across the middle of the
+            // blade ring, a blue core light and wing studs, and a short fin rising to the neck.
             let lit = c.bladeStyle == .darksaber ? RGB(0.9, 0.94, 1) : c.blade
+            metal(ctx, poly([(-0.8, -4.2), (0.8, -4.2), (0.35, 0.3), (-0.35, 0.3)]), f, halfWidth: 0.8)
+            fill(ctx, rrect(-0.22, top: -0.6, 0.44, 2.8, r: 0.22), lit)
+            let housing = CGMutablePath()
+            housing.move(to: CGPoint(x: -6.2, y: -6.4))
+            housing.addCurve(to: CGPoint(x: -2.0, y: -4.2), control1: CGPoint(x: -5.0, y: -5.2), control2: CGPoint(x: -3.4, y: -4.2))
+            housing.addLine(to: CGPoint(x: 2.0, y: -4.2))
+            housing.addCurve(to: CGPoint(x: 6.2, y: -6.4), control1: CGPoint(x: 3.4, y: -4.2), control2: CGPoint(x: 5.0, y: -5.2))
+            housing.addCurve(to: CGPoint(x: 2.6, y: -9.6), control1: CGPoint(x: 5.0, y: -8.2), control2: CGPoint(x: 3.8, y: -9.6))
+            housing.addLine(to: CGPoint(x: -2.6, y: -9.6))
+            housing.addCurve(to: CGPoint(x: -6.2, y: -6.4), control1: CGPoint(x: -3.8, y: -9.6), control2: CGPoint(x: -5.0, y: -8.2))
+            housing.closeSubpath()
+            metal(ctx, housing, f, halfWidth: 6.2)
+            metal(ctx, rrect(-1.7, top: -4.6, 3.4, 4.6, r: 1.0), f.alt, halfWidth: 1.7)
+            ctx.saveGState()
+            ctx.setShadow(offset: .zero, blur: 3, color: lit.cg(0.9))
+            ctx.setFillColor(lit.mix(.white, 0.35).cg())
+            ctx.fillEllipse(in: CGRect(x: -0.9, y: -7.8, width: 1.8, height: 1.8))
+            ctx.restoreGState()
             for sx in [CGFloat(-1), 1] {
-                let guardArc = CGMutablePath()
-                guardArc.move(to: CGPoint(x: sx * 2.2, y: 0.6))
-                guardArc.addCurve(to: CGPoint(x: sx * 3.0, y: -7.6), control1: CGPoint(x: sx * 5.4, y: 0.2), control2: CGPoint(x: sx * 5.2, y: -6.2))
-                ctx.saveGState()
-                ctx.setLineCap(.round)
-                ctx.addPath(guardArc)
-                ctx.setStrokeColor(f.dark.mix(.black, 0.4).cg())
-                ctx.setLineWidth(1.3)
-                ctx.strokePath()
-                ctx.addPath(guardArc)
-                ctx.setStrokeColor(f.base.mix(f.light, 0.2).cg())
-                ctx.setLineWidth(0.9)
-                ctx.strokePath()
-                ctx.addPath(guardArc)
-                ctx.setStrokeColor(lit.mix(.white, 0.3).cg(0.95))
-                ctx.setLineWidth(0.28)
-                ctx.strokePath()
-                ctx.restoreGState()
+                dot(ctx, sx * 4.3, -6.4, 0.45, lit)
+                dot(ctx, sx * 3.0, -8.0, 0.35, f.light)
             }
-            metal(ctx, poly([(-2.6, 1.0), (2.6, 1.0), (2.2, -2.6), (-2.2, -2.6)]), f, halfWidth: 2.6)
-            fill(ctx, rrect(-1.6, top: 0.4, 3.2, 0.5, r: 0.25), lit)
-            fill(ctx, rrect(-1.2, top: -0.9, 2.4, 0.4, r: 0.2), lit, 0.8)
-            let grip = poly([(-1.9, -2.6), (1.9, -2.6), (1.6, -12.4), (-1.6, -12.4)])
-            metal(ctx, grip, .black, halfWidth: 1.9)
-            diagWraps(ctx, top: -3.0, bottom: -12.0, width: 3.8, count: 7, color: f.dark.mix(.white, 0.15), clip: grip)
-            seg(ctx, -12.4, 2.4, 4.0, f, r: 1.2)
-            dot(ctx, 0, -13.6, 0.55, lit)
+            fill(ctx, rrect(-2.4, top: -8.9, 4.8, 0.6, r: 0.3), rubber, 0.8)
 
         case .inquisitor:
             let center = CGPoint(x: 0, y: -8.2)
