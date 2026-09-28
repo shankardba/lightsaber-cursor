@@ -239,6 +239,50 @@ enum SaberRenderer {
         ctx.strokePath()
     }
 
+    /// Twin plasma prongs (energy-sword style): they rise apart from the hilt and meet in one point at the tip.
+    static func plasmaOuter(_ u: CGFloat, _ w: CGFloat) -> CGFloat { w * 1.05 * pow(1 - u, 0.75) * (1 + 0.3 * u) }
+    static func plasmaInner(_ u: CGFloat, _ w: CGFloat) -> CGFloat { w * 0.32 * pow(1 - u, 1.6) }
+
+    static func plasmaPath(_ len: CGFloat, _ w: CGFloat) -> CGPath {
+        let p = CGMutablePath()
+        let n = 28
+        for sx in [CGFloat(-1), 1] {
+            var pts: [CGPoint] = []
+            for i in 0...n {
+                let u = CGFloat(i) / CGFloat(n)
+                pts.append(CGPoint(x: sx * plasmaOuter(u, w), y: -0.5 + u * (len + 0.5)))
+            }
+            for i in stride(from: n - 1, through: 0, by: -1) {
+                let u = CGFloat(i) / CGFloat(n)
+                pts.append(CGPoint(x: sx * plasmaInner(u, w), y: -0.5 + u * (len + 0.5)))
+            }
+            p.addLines(between: pts)
+            p.closeSubpath()
+        }
+        return p
+    }
+
+    static func drawPlasma(_ c: SaberConfig, _ ctx: CGContext, len: CGFloat, w: CGFloat, intensity I: CGFloat, radius R: CGFloat, px: CGFloat) {
+        let body = plasmaPath(len, w)
+        glowShape(ctx, body: body, halo: body, core: nil, c: c, intensity: I, radius: R, px: px)
+        let hot = c.blade.mix(.white, min(1, 0.55 + 0.45 * c.coreWhiteness))
+        ctx.saveGState()
+        ctx.setLineCap(.round)
+        ctx.setLineJoin(.round)
+        ctx.setStrokeColor(hot.cg())
+        ctx.setLineWidth(0.45)
+        for sx in [CGFloat(-1), 1] {
+            let n = 24
+            ctx.move(to: CGPoint(x: sx * (plasmaOuter(0, w) + plasmaInner(0, w)) / 2, y: 0))
+            for i in 1...n {
+                let u = CGFloat(i) / CGFloat(n) * 0.96
+                ctx.addLine(to: CGPoint(x: sx * (plasmaOuter(u, w) + plasmaInner(u, w)) / 2, y: u * len))
+            }
+            ctx.strokePath()
+        }
+        ctx.restoreGState()
+    }
+
     static func glowShape(_ ctx: CGContext, body: CGPath, halo: CGPath, core: CGPath?, c: SaberConfig,
                           intensity I: CGFloat, radius R: CGFloat, px: CGFloat) {
         let dark = c.bladeStyle == .darksaber
@@ -293,6 +337,10 @@ enum SaberRenderer {
 
         if c.bladeStyle == .sword {
             drawSword(c, ctx, len: len, w: w, t: t, px: px)
+            return
+        }
+        if c.bladeStyle == .plasma {
+            drawPlasma(c, ctx, len: len, w: w, intensity: I, radius: R, px: px)
             return
         }
 
@@ -693,6 +741,38 @@ enum SaberRenderer {
             pommel.addLine(to: CGPoint(x: 1.5, y: -13.2))
             pommel.closeSubpath()
             metal(ctx, pommel, f, halfWidth: 3.4)
+
+        case .plasma:
+            // Short dark handle with curved guard brackets and glowing slots lit in the blade color.
+            let lit = c.bladeStyle == .darksaber ? RGB(0.9, 0.94, 1) : c.blade
+            for sx in [CGFloat(-1), 1] {
+                let guardArc = CGMutablePath()
+                guardArc.move(to: CGPoint(x: sx * 2.2, y: 0.6))
+                guardArc.addCurve(to: CGPoint(x: sx * 3.0, y: -7.6), control1: CGPoint(x: sx * 5.4, y: 0.2), control2: CGPoint(x: sx * 5.2, y: -6.2))
+                ctx.saveGState()
+                ctx.setLineCap(.round)
+                ctx.addPath(guardArc)
+                ctx.setStrokeColor(f.dark.mix(.black, 0.4).cg())
+                ctx.setLineWidth(1.3)
+                ctx.strokePath()
+                ctx.addPath(guardArc)
+                ctx.setStrokeColor(f.base.mix(f.light, 0.2).cg())
+                ctx.setLineWidth(0.9)
+                ctx.strokePath()
+                ctx.addPath(guardArc)
+                ctx.setStrokeColor(lit.mix(.white, 0.3).cg(0.95))
+                ctx.setLineWidth(0.28)
+                ctx.strokePath()
+                ctx.restoreGState()
+            }
+            metal(ctx, poly([(-2.6, 1.0), (2.6, 1.0), (2.2, -2.6), (-2.2, -2.6)]), f, halfWidth: 2.6)
+            fill(ctx, rrect(-1.6, top: 0.4, 3.2, 0.5, r: 0.25), lit)
+            fill(ctx, rrect(-1.2, top: -0.9, 2.4, 0.4, r: 0.2), lit, 0.8)
+            let grip = poly([(-1.9, -2.6), (1.9, -2.6), (1.6, -12.4), (-1.6, -12.4)])
+            metal(ctx, grip, .black, halfWidth: 1.9)
+            diagWraps(ctx, top: -3.0, bottom: -12.0, width: 3.8, count: 7, color: f.dark.mix(.white, 0.15), clip: grip)
+            seg(ctx, -12.4, 2.4, 4.0, f, r: 1.2)
+            dot(ctx, 0, -13.6, 0.55, lit)
 
         case .inquisitor:
             let center = CGPoint(x: 0, y: -8.2)
