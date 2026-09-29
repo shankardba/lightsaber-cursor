@@ -1,4 +1,5 @@
 import AppKit
+import ServiceManagement
 import SwiftUI
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -15,9 +16,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if settings.prefs.enabled { engine.start() }
 
         let firstLaunchKey = "hasLaunched"
-        if !UserDefaults.standard.bool(forKey: firstLaunchKey) {
+        let firstLaunch = !UserDefaults.standard.bool(forKey: firstLaunchKey)
+        if firstLaunch {
             UserDefaults.standard.set(true, forKey: firstLaunchKey)
             showCustomizer()
+        }
+        if firstLaunch {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
+                self?.offerLaunchAtLogin()
+                self?.statusMenu.checkIconVisible()
+            }
+        }
+    }
+
+    private func offerLaunchAtLogin() {
+        guard SMAppService.mainApp.status != .enabled else { return }
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = "Welcome to Lightsaber Cursor"
+        alert.informativeText = "Start Lightsaber Cursor automatically when you log in? You can change this later in Customize → Behavior."
+        alert.addButton(withTitle: "Start at Login")
+        alert.addButton(withTitle: "Not Now")
+        if alert.runModal() == .alertFirstButtonReturn {
+            try? SMAppService.mainApp.register()
         }
     }
 
@@ -81,6 +102,37 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         let menu = NSMenu()
         menu.delegate = self
         item.menu = menu
+    }
+
+    /// macOS 26 hides menu bar icons until the user allows them, and a full menu bar pushes new icons under
+    /// the notch. Either way the icon's window isn't visible, so offer to open the right settings pane.
+    func checkIconVisible() {
+        let dontAsk = "menuBarHintDismissed"
+        guard !UserDefaults.standard.bool(forKey: dontAsk),
+              let window = item.button?.window, !window.occlusionState.contains(.visible) else { return }
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = "Your Lightsaber Cursor menu bar icon is hidden"
+        alert.informativeText = """
+            macOS is hiding the saber icon. In Menu Bar settings, scroll to "Allow in the Menu Bar" and turn on Lightsaber Cursor.
+
+            If it's already on, your menu bar is full: hold ⌘ and drag other icons, or turn some off.
+
+            Meanwhile, ⌃⌥⌘L toggles the saber, and opening the app from Spotlight shows the customizer.
+            """
+        alert.addButton(withTitle: "Open Menu Bar Settings")
+        alert.addButton(withTitle: "Not Now")
+        alert.addButton(withTitle: "Don't Show Again")
+        switch alert.runModal() {
+        case .alertFirstButtonReturn:
+            if let url = URL(string: "x-apple.systempreferences:com.apple.ControlCenter-Settings.extension") {
+                NSWorkspace.shared.open(url)
+            }
+        case .alertThirdButtonReturn:
+            UserDefaults.standard.set(true, forKey: dontAsk)
+        default:
+            break
+        }
     }
 
     static func icon() -> NSImage {

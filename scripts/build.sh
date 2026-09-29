@@ -11,7 +11,7 @@ INSTALL_DIR="$HOME/Applications"
 
 mkdir -p "$BUILD"
 echo "Compiling…"
-swiftc -O -swift-version 5 -target arm64-apple-macosx14.0 \
+swiftc -O -swift-version 5 -target "$(uname -m)-apple-macosx14.0" \
     -framework AppKit -framework SwiftUI -framework Carbon \
     -framework ApplicationServices -framework ServiceManagement \
     "$ROOT"/Sources/LightsaberCursor/*.swift \

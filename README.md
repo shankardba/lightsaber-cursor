@@ -17,11 +17,29 @@ All saber art is drawn in code.
 
 ---
 
-## Setup, step by step
+## Quick setup
+
+You need a Mac running **macOS 14 (Sonoma) or newer**. No Apple developer account, no Xcode app and no special permissions (Accessibility, Screen Recording and so on).
+
+1. Get the code: open `iCloud Drive/Projects/lightsaber-cursor` if it syncs to this Mac, or download it from GitHub (**Code → Download ZIP**, then double-click the ZIP).
+2. Double-click **`Setup.command`** in that folder.
+   - If macOS says it can't be opened, right-click it → **Open** → **Open**.
+3. Follow the prompts. The script:
+   - Checks your macOS version.
+   - Installs Apple's free Command Line Tools if they're missing. macOS shows its own **Install** dialog; click it and the script carries on when the install finishes.
+   - Builds the app, installs it as `~/Applications/Lightsaber Cursor.app` and launches it.
+
+The first time the app starts, it opens the Customizer and asks whether to **start at login**. If macOS hides its menu bar icon, the app offers to open **Menu Bar** settings, where you turn on **Lightsaber Cursor** under *Allow in the Menu Bar*. macOS doesn't let apps switch that on themselves. These questions only appear on the first launch.
+
+The manual steps below do the same thing by hand.
+
+---
+
+## Manual setup, step by step
 
 ### What you need
 
-- A Mac running **macOS 14 (Sonoma) or newer**, on Apple silicon (M1 or later).
+- A Mac running **macOS 14 (Sonoma) or newer**.
 - About 5 minutes.
 - No Apple developer account, no Xcode app and no special permissions (Accessibility, Screen Recording and so on).
 
@@ -87,7 +105,7 @@ The saber icon appears near the right end of the menu bar. On MacBooks with a ca
 
 ### Step 7: Launch at login (optional)
 
-Customizer → **Behavior** tab → **System** → turn on **Launch at login**.
+The app asks about this on first launch. To change it later: Customizer → **Behavior** tab → **System** → **Launch at login**.
 
 ### Everyday use
 
@@ -105,7 +123,8 @@ Customizer → **Behavior** tab → **System** → turn on **Launch at login**.
 - **No menu bar icon:** see Step 5 (Allow in the Menu Bar, and the notch). While the icon is hidden, ⌃⌥⌘L still toggles the saber, and opening the app from Spotlight shows the Customizer.
 - **The saber disappears over password or keychain prompts:** this is expected. macOS doesn't let any app draw over secure dialogs, so the normal pointer shows there.
 - **The pointer is stuck invisible:** this shouldn't happen, because quitting or a crash restores it. If it ever does, run `killall LightsaberCursor` in Terminal and the normal pointer returns.
-- **"App can't be opened" after copying the `.app` to another Mac:** macOS blocks apps not signed by Apple the first time. Open **System Settings → Privacy & Security** and click **Open Anyway**. Building on that Mac with Step 3 avoids this.
+- **"App can't be opened" after copying the `.app` to another Mac:** macOS blocks apps not signed by Apple the first time. Open **System Settings → Privacy & Security** and click **Open Anyway**. Building on that Mac with `Setup.command` or Step 3 avoids this.
+- **`Setup.command` can't be opened:** right-click it → **Open**. You can also run `./scripts/setup.sh` in Terminal from the project folder.
 
 ### Uninstall
 
