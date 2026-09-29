@@ -17,6 +17,102 @@ final class ThumbCache {
     }
 }
 
+/// The Customizer's saber preview. It draws into a plain layer on its own 24 fps timer (the blade's flicker rate)
+/// instead of through SwiftUI, so animating it doesn't re-lay-out the whole window. It only animates while the
+/// window is on screen and in front, and holds still otherwise.
+final class SaberPreviewView: NSView {
+    var config = Presets.defaultSaber { didSet { if config != oldValue { update() } } }
+    var mode = PreviewMode.live { didSet { if mode != oldValue { update() } } }
+
+    private struct FrameKey: Equatable {
+        var config: SaberConfig
+        var ext: Int
+        var frame: Int
+        var size: CGSize
+    }
+    private let saberLayer = CALayer()
+    private var timer: Timer?
+    private var windowObservers: [NSObjectProtocol] = []
+    private var lastKey: FrameKey?
+
+    private var animated: Bool { config.animated || config.bladeStyle == .unstable }
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        wantsLayer = true
+        saberLayer.actions = ["contents": NSNull(), "bounds": NSNull(), "position": NSNull()]
+        saberLayer.contentsScale = 2
+        layer?.addSublayer(saberLayer)
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+    deinit {
+        timer?.invalidate()
+        windowObservers.forEach { NotificationCenter.default.removeObserver($0) }
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        windowObservers.forEach { NotificationCenter.default.removeObserver($0) }
+        windowObservers = []
+        if let w = window {
+            let names = [NSWindow.didChangeOcclusionStateNotification, NSWindow.didBecomeKeyNotification, NSWindow.didResignKeyNotification]
+            windowObservers = names.map {
+                NotificationCenter.default.addObserver(forName: $0, object: w, queue: .main) { [weak self] _ in self?.update() }
+            }
+        }
+        update()
+    }
+
+    override func layout() {
+        super.layout()
+        update()
+    }
+
+    /// Runs the timer only while the window is on screen and in front, and something in the preview moves.
+    private func update() {
+        let onScreen = window?.occlusionState.contains(.visible) ?? false
+        let moving = onScreen && window?.isKeyWindow == true && (mode == .live || animated)
+        if moving && timer == nil {
+            let t = Timer(timeInterval: 1.0 / 24, repeats: true) { [weak self] _ in self?.drawFrame() }
+            RunLoop.main.add(t, forMode: .common)
+            timer = t
+        } else if !moving {
+            timer?.invalidate()
+            timer = nil
+        }
+        if onScreen { drawFrame() }
+    }
+
+    private func drawFrame() {
+        let size = bounds.size
+        guard size.width > 0, size.height > 0 else { return }
+        let st = mode.state(at: Date().timeIntervalSinceReferenceDate)
+        let key = FrameKey(config: config, ext: Int(st.ext * 120), frame: animated && st.ext > 0 ? Int(st.time * 24) : 0, size: size)
+        guard key != lastKey else { return }
+        lastKey = key
+        let lay = SaberRenderer.layout(config, scale: 1)
+        let s = min(size.width / lay.size.width, size.height / lay.size.height) * 0.92
+        guard let r = SaberRenderer.render(config, st, scale: s, backing: 2) else { return }
+        saberLayer.contents = r.image
+        saberLayer.frame = CGRect(x: (size.width - r.size.width) / 2, y: (size.height - r.size.height) / 2,
+                                  width: r.size.width, height: r.size.height)
+    }
+}
+
+struct SaberPreviewLayer: NSViewRepresentable {
+    let config: SaberConfig
+    let mode: PreviewMode
+
+    func makeNSView(context: Context) -> SaberPreviewView { SaberPreviewView() }
+
+    func updateNSView(_ view: SaberPreviewView, context: Context) {
+        view.config = config
+        view.mode = mode
+    }
+}
+
 struct SaberThumb: View {
     let config: SaberConfig
     var height: CGFloat = 34
@@ -189,17 +285,8 @@ struct SaberPreview: View {
                 .labelsHidden()
                 Toggle("Light", isOn: $lightBackground).fixedSize()
             }
-            TimelineView(.animation) { tl in
-                Canvas { ctx, size in
-                    let st = mode.state(at: tl.date.timeIntervalSinceReferenceDate)
-                    let lay = SaberRenderer.layout(config, scale: 1)
-                    let s = min(size.width / lay.size.width, size.height / lay.size.height) * 0.92
-                    guard let r = SaberRenderer.render(config, st, scale: s, backing: 2) else { return }
-                    let origin = CGPoint(x: (size.width - r.size.width) / 2, y: (size.height - r.size.height) / 2)
-                    ctx.draw(Image(decorative: r.image, scale: 2), in: CGRect(origin: origin, size: r.size))
-                }
-            }
-            .frame(minHeight: 380)
+            SaberPreviewLayer(config: config, mode: mode)
+                .frame(minHeight: 380)
             .background(lightBackground ? Color(white: 0.93) : Color(red: 0.04, green: 0.05, blue: 0.08))
             .clipShape(RoundedRectangle(cornerRadius: 14))
         }

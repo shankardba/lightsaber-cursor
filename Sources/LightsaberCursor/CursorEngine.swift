@@ -63,7 +63,17 @@ final class CursorEngine: ObservableObject {
     private var overlays: [OverlayWindow] = []
     private var timer: Timer?
     private var cancellables: Set<AnyCancellable> = []
-    private var clickMonitors: [Any] = []
+    private var eventMonitors: [Any] = []
+
+    /// Frame rate follows what's on screen: full speed while the pointer moves or the blade animates,
+    /// 24 Hz for a flickering blade at rest (the rate its frame loop plays at), and 10 Hz when nothing changes, to save battery.
+    private enum Pace: Double {
+        case fast = 120, shimmer = 24, rest = 10
+    }
+    private var pace = Pace.fast
+    private var lastRenderedMouse: CGPoint?
+    private var lastRenderedWindow: OverlayWindow?
+    private var trailShown = false
 
     private var lastTick = CACurrentMediaTime()
     private var lastMouse = NSEvent.mouseLocation
@@ -103,6 +113,18 @@ final class CursorEngine: ObservableObject {
     private var cached: RenderedImage?
     private var frontBundleID: String?
 
+    /// A fully lit flickering blade replays a loop of frames drawn once, instead of redrawing every frame.
+    /// 46 frames at 24 fps span two turns of the Inquisitor ring's three-fold symmetry, so its spin loops seamlessly.
+    private static let loopFrames = 46
+    private static let loopDuration = 2 * (2 * Double.pi / 3) / 2.2
+    private struct LoopKey: Equatable {
+        var config: SaberConfig
+        var scale: Double
+        var backing: CGFloat
+    }
+    private var loopKey: LoopKey?
+    private var loop: [Int: RenderedImage] = [:]
+
     init(settings: AppSettings) {
         self.settings = settings
         displayed = settings.prefs.saber
@@ -134,15 +156,21 @@ final class CursorEngine: ObservableObject {
         rebuildOverlays()
         lastMoveTime = CACurrentMediaTime()
         ext = 0
-        let t = Timer(timeInterval: 1.0 / 120.0, target: self, selector: #selector(tick), userInfo: nil, repeats: true)
-        RunLoop.main.add(t, forMode: .common)
-        timer = t
-        let mask: NSEvent.EventTypeMask = [.leftMouseDown, .rightMouseDown, .otherMouseDown]
-        if let g = NSEvent.addGlobalMonitorForEvents(matching: mask, handler: { [weak self] _ in self?.onClick() }) {
-            clickMonitors.append(g)
+        schedule(.fast)
+        let clicks: NSEvent.EventTypeMask = [.leftMouseDown, .rightMouseDown, .otherMouseDown]
+        if let g = NSEvent.addGlobalMonitorForEvents(matching: clicks, handler: { [weak self] _ in self?.onClick() }) {
+            eventMonitors.append(g)
         }
-        if let l = NSEvent.addLocalMonitorForEvents(matching: mask, handler: { [weak self] e in self?.onClick(); return e }) {
-            clickMonitors.append(l)
+        if let l = NSEvent.addLocalMonitorForEvents(matching: clicks, handler: { [weak self] e in self?.onClick(); return e }) {
+            eventMonitors.append(l)
+        }
+        // Movement wakes the loop from its resting rate straight away (the resting tick would notice within 0.1 s anyway).
+        let moves: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDragged, .rightMouseDragged, .otherMouseDragged]
+        if let g = NSEvent.addGlobalMonitorForEvents(matching: moves, handler: { [weak self] _ in self?.wake() }) {
+            eventMonitors.append(g)
+        }
+        if let l = NSEvent.addLocalMonitorForEvents(matching: moves, handler: { [weak self] e in self?.wake(); return e }) {
+            eventMonitors.append(l)
         }
         SystemCursor.ensureHidden()
     }
@@ -150,12 +178,41 @@ final class CursorEngine: ObservableObject {
     func stop() {
         timer?.invalidate()
         timer = nil
-        clickMonitors.forEach { NSEvent.removeMonitor($0) }
-        clickMonitors.removeAll()
+        eventMonitors.forEach { NSEvent.removeMonitor($0) }
+        eventMonitors.removeAll()
         overlays.forEach { $0.orderOut(nil) }
         overlays.removeAll()
         SystemCursor.restore()
         soundEngine?.shutdown()
+    }
+
+    private func schedule(_ p: Pace) {
+        timer?.invalidate()
+        let t = Timer(timeInterval: 1 / p.rawValue, target: self, selector: #selector(tick), userInfo: nil, repeats: true)
+        // Slack lets macOS batch the resting wake-ups with other work.
+        t.tolerance = p == .rest ? 0.03 : 0
+        RunLoop.main.add(t, forMode: .common)
+        timer = t
+        pace = p
+    }
+
+    private func wake() {
+        guard timer != nil, pace != .fast else { return }
+        schedule(.fast)
+        tick()
+    }
+
+    /// Picks the frame rate for what's happening now.
+    private func updatePace(now: CFTimeInterval, settled: Bool) {
+        let want: Pace
+        if !settled || now - lastMoveTime < 0.6 || NSEvent.pressedMouseButtons != 0 || sparkStart != nil || humTestStart != nil {
+            want = .fast
+        } else if ext > 0 && !showingSystemPointer && (displayed.animated || displayed.bladeStyle == .unstable) {
+            want = .shimmer
+        } else {
+            want = .rest
+        }
+        if want != pace { schedule(want) }
     }
 
     private func rebuildOverlays() {
@@ -167,6 +224,7 @@ final class CursorEngine: ObservableObject {
 
     private func onClick() {
         lastMoveTime = CACurrentMediaTime()
+        wake()
         if settings.prefs.soundClash { playSound(.clash) }
         guard settings.prefs.clickSpark else { return }
         sparkStart = CACurrentMediaTime()
@@ -256,7 +314,7 @@ final class CursorEngine: ObservableObject {
         }
         lastMouse = mouse
 
-        if now - lastSecureCheck > 0.12 {
+        if now - lastSecureCheck > (pace == .fast ? 0.12 : 0.3) {
             lastSecureCheck = now
             overSecureDialog = CGEvent(source: nil).map { SecureDialogs.cover($0.location) } ?? false
         }
@@ -277,9 +335,10 @@ final class CursorEngine: ObservableObject {
         if showingSystemPointer {
             hideAll()
             updateHum(now: now, dt: dt, prefs: p)
+            updatePace(now: now, settled: true)
             return
         }
-        if now - lastHide > 0.2 {
+        if now - lastHide > (pace == .fast ? 0.2 : 0.5) {
             lastHide = now
             SystemCursor.ensureHidden()
             overlays.forEach { $0.orderFrontRegardless() }
@@ -316,6 +375,7 @@ final class CursorEngine: ObservableObject {
 
         updateHum(now: now, dt: dt, prefs: p)
         render(now: now, mouse: mouse, prefs: p)
+        updatePace(now: now, settled: ext == target && pending == nil)
     }
 
     private func hideAll() {
@@ -327,6 +387,8 @@ final class CursorEngine: ObservableObject {
             w.trailLayers.forEach { $0.isHidden = true }
         }
         CATransaction.commit()
+        lastRenderedMouse = nil
+        trailShown = false
     }
 
     private func render(now: CFTimeInterval, mouse: CGPoint, prefs p: Prefs) {
@@ -334,12 +396,36 @@ final class CursorEngine: ObservableObject {
         let scale = CGFloat(p.scale)
         let cfg = displayed
         let animated = cfg.animated || cfg.bladeStyle == .unstable
-        let key = RenderKey(config: cfg, ext: Int(ext * 120),
-                            frame: animated && ext > 0 ? Int(now * 40) : 0, scale: p.scale, backing: window.backing)
+        let looping = animated && ext >= 1
+        let frame = !animated || ext <= 0 ? 0
+            : looping ? Int(now / Self.loopDuration * Double(Self.loopFrames)) % Self.loopFrames
+            : Int(now * 40)
+        let key = RenderKey(config: cfg, ext: Int(ext * 120), frame: frame, scale: p.scale, backing: window.backing)
+        // Nothing moved and the image is the same: leave the layers alone.
+        if key == lastKey && mouse == lastRenderedMouse && window === lastRenderedWindow && sparkStart == nil && !trailShown {
+            return
+        }
         if key != lastKey {
             lastKey = key
-            cached = SaberRenderer.render(cfg, SaberState(ext: ext, time: now), scale: scale, backing: window.backing)
+            if looping {
+                let lk = LoopKey(config: cfg, scale: p.scale, backing: window.backing)
+                if lk != loopKey {
+                    loopKey = lk
+                    loop.removeAll()
+                }
+                if let img = loop[frame] {
+                    cached = img
+                } else {
+                    let t = Double(frame) * Self.loopDuration / Double(Self.loopFrames)
+                    cached = SaberRenderer.render(cfg, SaberState(ext: 1, time: t), scale: scale, backing: window.backing)
+                    loop[frame] = cached
+                }
+            } else {
+                cached = SaberRenderer.render(cfg, SaberState(ext: ext, time: now), scale: scale, backing: window.backing)
+            }
         }
+        lastRenderedMouse = mouse
+        lastRenderedWindow = window
 
         CATransaction.begin()
         CATransaction.setDisableActions(true)
@@ -391,9 +477,11 @@ final class CursorEngine: ObservableObject {
 
         let strength = min(1, max(0, (speed - 350) / 1600))
         guard enabled, ext > 0.6, strength > 0.01, history.count >= 2 else {
-            w.trailLayers.forEach { $0.isHidden = true }
+            if trailShown { w.trailLayers.forEach { $0.isHidden = true } }
+            trailShown = false
             return
         }
+        trailShown = true
         let color = cfg.bladeStyle == .darksaber ? RGB(0.9, 0.94, 1) : cfg.blade
         let off = CGPoint(x: w.screenFrame.minX, y: w.screenFrame.minY)
         let n = history.count

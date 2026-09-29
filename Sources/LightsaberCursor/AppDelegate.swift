@@ -2,7 +2,7 @@ import AppKit
 import ServiceManagement
 import SwiftUI
 
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     let settings = AppSettings()
     private(set) var engine: CursorEngine!
     private var statusMenu: StatusMenuController!
@@ -54,16 +54,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func showCustomizer() {
         if customizer == nil {
             let host = NSHostingController(rootView: CustomizerView(settings: settings, engine: engine))
+            // Don't recompute the window's size constraints on every preview frame.
+            host.sizingOptions = []
             let w = NSWindow(contentViewController: host)
             w.title = "Lightsaber Cursor"
             w.styleMask = [.titled, .closable, .miniaturizable, .resizable]
             w.setContentSize(NSSize(width: 980, height: 680))
             w.isReleasedWhenClosed = false
             w.center()
+            w.delegate = self
             customizer = w
         }
         NSApp.activate(ignoringOtherApps: true)
         customizer?.makeKeyAndOrderFront(nil)
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        guard let w = notification.object as? NSWindow, w === customizer else { return }
+        // Tear down the SwiftUI tree so nothing keeps drawing once the window is closed.
+        customizer = nil
+        DispatchQueue.main.async { w.contentViewController = nil }
     }
 }
 
