@@ -66,14 +66,19 @@ final class AppSettings: ObservableObject {
 
     /// Saved keys are laid over the current defaults, so settings survive when new options are added.
     private static func load() -> Prefs? {
-        guard let data = UserDefaults.standard.data(forKey: key),
-              let saved = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let defaultsData = try? JSONEncoder().encode(Prefs()),
-              var merged = try? JSONSerialization.jsonObject(with: defaultsData) as? [String: Any]
-        else { return nil }
-        merged.merge(saved) { _, new in new }
-        guard let mergedData = try? JSONSerialization.data(withJSONObject: merged) else { return nil }
-        return try? JSONDecoder().decode(Prefs.self, from: mergedData)
+        guard let data = UserDefaults.standard.data(forKey: key) else { return nil }
+        if let saved = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let defaultsData = try? JSONEncoder().encode(Prefs()),
+           var merged = try? JSONSerialization.jsonObject(with: defaultsData) as? [String: Any] {
+            merged.merge(saved) { _, new in new }
+            if let mergedData = try? JSONSerialization.data(withJSONObject: merged),
+               let prefs = try? JSONDecoder().decode(Prefs.self, from: mergedData) {
+                return prefs
+            }
+        }
+        // Keep a copy of settings this version can't read rather than overwriting them with defaults.
+        UserDefaults.standard.set(data, forKey: key + ".unreadable")
+        return nil
     }
 
     private func save() {

@@ -31,6 +31,10 @@ You need a Mac running **macOS 14 (Sonoma) or newer**. No Apple developer accoun
 
 The first time the app starts, it opens the Customizer and asks whether to **start at login**. If macOS hides its menu bar icon, the app offers to open **Menu Bar** settings, where you turn on **Lightsaber Cursor** under *Allow in the Menu Bar*. macOS doesn't let apps switch that on themselves. These questions only appear on the first launch.
 
+### Upgrading
+
+Get the new version the same way (download or `git pull`) and double-click **`Setup.command`** again. Setup finds the old installation, quits it, and removes the old app and its build files before a clean install. It asks once whether to **Keep Settings** (your saved sabers, preferences and start-at-login stay as they were) or **Start Fresh** (everything is reset and the first-run questions come back). It also clears the Accessibility permission older versions asked for, which this version doesn't need.
+
 The manual steps below do the same thing by hand.
 
 ---
